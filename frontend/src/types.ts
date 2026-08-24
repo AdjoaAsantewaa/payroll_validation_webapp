@@ -1,0 +1,66 @@
+export type Role = "specialist" | "submitter";
+
+export interface AuthUser {
+  access_token: string;
+  role: Role;
+  name: string;
+  initials: string;
+  email: string;
+  department?: string | null;
+  department_id?: number | null;
+}
+
+export interface DashboardData {
+  cycle: { id: number; label: string; cutoff_date: string };
+  pipeline: {
+    submitted: number;
+    mapped: number;
+    validated: number;
+    resolve: number;
+    approve: number;
+    export: number;
+    total_departments: number;
+  };
+  stats: {
+    needs_you: number;
+    submitted_of_total: string;
+    not_in_yet: number;
+    self_fixed: number;
+    approved: number;
+  };
+  chart: { department: string; count: number }[];
+  departments: DepartmentRow[];
+}
+
+export interface DepartmentRow {
+  submission_id: number;
+  department: string;
+  department_id: number;
+  status: "not_submitted" | "needs_review" | "query_sent" | "approved";
+  rows: number;
+  exceptions: number;
+  exceptions_high: number;
+  last_activity: string | null;
+}
+
+export interface ExceptionItem {
+  id: number;
+  row_label: string;
+  field: string | null;
+  severity: "high" | "med" | "low";
+  source: "rule" | "ai";
+  issue_text: string;
+  submitted_value: string | null;
+  usual_value: string | null;
+  ai_explanation: string | null;
+  recommended_action: string | null;
+  status: "open" | "accepted" | "rejected" | "query_open" | "query_answered";
+  note: string | null;
+  row?: {
+    staff_id: string | null;
+    full_name: string | null;
+    overtime_hours: number | null;
+    basic_pay: number | null;
+    allowances: number | null;
+  } | null;
+}

@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #f4f5f6;
+  color: #111111;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #111111;
+  color: white;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.badge-red { background: #fdecec; color: #b91c1c; }
+.badge-amber { background: #fef3e2; color: #b45309; }
+.badge-green { background: #e8f5ec; color: #15803d; }
+.badge-grey { background: #f0f0f0; color: #555555; }
+.badge-blue { background: #eaf1fd; color: #1d4ed8; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+  white-space: nowrap;
+}
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-dark { background: #111111; color: #ffffff; }
+.btn-dark:hover:not(:disabled) { background: #2a2a2a; }
+
+.btn-outline { background: #ffffff; color: #111111; border-color: #d8d8d8; }
+.btn-outline:hover:not(:disabled) { background: #f6f6f6; }
+
+.btn-ghost { background: transparent; color: #111111; }
+.btn-ghost:hover:not(:disabled) { background: #f0f0f0; }
+
+.card {
+  background: #ffffff;
+  border: 1px solid #e6e6e6;
+  border-radius: 10px;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid #d8d8d8;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  background: #ffffff;
+  outline: none;
+}
+.input:focus { border-color: #111111; }
+
+.table-clean { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table-clean th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: #8a8a8a;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 8px 12px;
+  border-bottom: 1px solid #eaeaea;
+}
+.table-clean td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f1f1;
+  vertical-align: middle;
+}
+.table-clean tr:hover td { background: #fafafa; }

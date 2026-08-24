@@ -1,0 +1,13 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'payroll.db')}")
+JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-me-in-production")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "480"))
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+AI_MODEL = os.getenv("AI_MODEL", "claude-sonnet-4-5")
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
