@@ -1,4 +1,11 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+// VITE_API_URL is baked in at build time (Vite only exposes vars present when
+// `vite build` runs). Local dev points at the standalone uvicorn server via
+// .env.development; production points at the same-origin /api mount via
+// .env.production (see vercel.json's services + rewrites). No localhost
+// fallback here on purpose — if this is ever unset in a real deploy, API
+// calls should fail loudly (relative-path 404s) rather than silently trying
+// to reach a developer's own machine.
+const API_URL = import.meta.env.VITE_API_URL ?? "";
 
 export class ApiError extends Error {
   status: number;

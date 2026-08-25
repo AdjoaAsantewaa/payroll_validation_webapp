@@ -391,8 +391,17 @@ def seed(db: Session):
     db.commit()
 
 
-def init_db_and_seed():
+def create_tables():
+    """Dev-only convenience for SQLite. Production schema is owned by Alembic
+    (`alembic upgrade head`) — this is intentionally not called against Postgres."""
     Base.metadata.create_all(bind=engine)
+
+
+def run_seed():
+    """Idempotent: seed() bails out immediately if a Department row already
+    exists, so this is safe to run repeatedly and safe to run against a
+    database that already has real data — it will not duplicate or overwrite
+    anything. Safe for both local SQLite and production Postgres."""
     db = SessionLocal()
     try:
         seed(db)
@@ -400,6 +409,17 @@ def init_db_and_seed():
         db.close()
 
 
+def init_db_and_seed():
+    """Back-compat helper for local SQLite dev — creates tables then seeds.
+    Do not call this in production; use `alembic upgrade head` + `run_seed()`."""
+    create_tables()
+    run_seed()
+
+
 if __name__ == "__main__":
-    init_db_and_seed()
-    print("Database initialized and seeded.")
+    from app.config import IS_SQLITE
+
+    if IS_SQLITE:
+        create_tables()  # dev convenience; production schema comes from Alembic
+    run_seed()
+    print("Seed complete (no-op if data already existed).")

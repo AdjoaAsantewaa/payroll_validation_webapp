@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Shell } from "../../components/Shell";
 import { SeverityBadge, SourceBadge } from "../../components/StatusBadge";
 import { api, ApiError } from "../../api/client";

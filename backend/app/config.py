@@ -4,7 +4,23 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'payroll.db')}")
+
+
+def _normalize_database_url(url: str) -> str:
+    """SQLAlchemy 2.x rejects the legacy 'postgres://' scheme that Supabase/Heroku-style
+    providers hand out — rewrite it to 'postgresql://' so DATABASE_URL can be pasted
+    in verbatim. Also route to psycopg2 explicitly so no other driver gets guessed."""
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+    if url.startswith("postgresql://") and "+psycopg2" not in url:
+        url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    return url
+
+
+DATABASE_URL = _normalize_database_url(
+    os.getenv("DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'payroll.db')}")
+)
+IS_SQLITE = DATABASE_URL.startswith("sqlite")
 JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-me-in-production")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "480"))
