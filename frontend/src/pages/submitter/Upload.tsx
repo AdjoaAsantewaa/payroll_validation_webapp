@@ -16,6 +16,28 @@ interface UploadResult {
   unmapped_columns: string[];
   exceptions: ExceptionItem[];
   self_fixed_count: number;
+  blocked?: boolean;
+  block_reason?: "mapping_conflict" | "not_payroll_shaped";
+  message?: string;
+  mapping_conflicts?: Record<string, string[]>;
+  missing_fields?: string[];
+}
+
+/** Mirrors backend parser.find_mapping_conflicts: two source columns must
+ * never target the same canonical field. Computed client-side too so the
+ * mapping editor can flag it live, before the round-trip to the backend
+ * (which is the actual enforcement — this is UX, not the guarantee). */
+function computeConflicts(mapping: Record<string, string | null>): Record<string, string[]> {
+  const byTarget: Record<string, string[]> = {};
+  for (const [source, target] of Object.entries(mapping)) {
+    if (!target) continue;
+    (byTarget[target] ||= []).push(source);
+  }
+  const conflicts: Record<string, string[]> = {};
+  for (const [target, cols] of Object.entries(byTarget)) {
+    if (cols.length > 1) conflicts[target] = cols;
+  }
+  return conflicts;
 }
 
 export default function Upload() {
@@ -41,6 +63,10 @@ export default function Upload() {
       const res = await api.postForm<UploadResult>("/submissions/upload", form);
       setResult(res);
       setMappingDraft(res.mapping);
+      // Guide straight to the fix: a conflict can only be resolved by
+      // editing the mapping, so open that editor immediately rather than
+      // making the submitter find the "edit" link themselves.
+      setEditingMapping(res.block_reason === "mapping_conflict");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Upload failed");
     } finally {
@@ -60,12 +86,25 @@ export default function Upload() {
     setUploading(true);
     setError(null);
     try {
-      const res = await api.post<{ submission_id: number; row_count: number; mapping: Record<string, string | null>; exceptions: ExceptionItem[] }>(
+      const res = await api.post<UploadResult>(
         `/submissions/${result.submission_id}/remap`,
         { mapping: mappingDraft }
       );
-      setResult({ ...result, mapping: res.mapping, exceptions: res.exceptions, row_count: res.row_count });
-      setEditingMapping(false);
+      setResult({
+        ...result,
+        mapping: res.mapping,
+        exceptions: res.exceptions,
+        row_count: res.row_count,
+        blocked: res.blocked,
+        block_reason: res.block_reason,
+        message: res.message,
+        mapping_conflicts: res.mapping_conflicts,
+        missing_fields: res.missing_fields,
+      });
+      // Still a mapping conflict -> keep the editor open so it can be fixed
+      // in place. Resolved, or blocked for a different reason the mapping
+      // editor can't fix (not payroll-shaped) -> close it.
+      setEditingMapping(res.block_reason === "mapping_conflict");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not update mapping");
     } finally {
@@ -89,6 +128,15 @@ export default function Upload() {
   const problems = result?.exceptions || [];
   const blocking = problems.filter((p) => p.source === "rule");
   const advisory = problems.filter((p) => p.source === "ai");
+
+  // Live, client-side conflict detection while editing (immediate feedback
+  // and blocks the Confirm button before any round-trip) plus whatever the
+  // backend already flagged in the last response (shown when not editing,
+  // or as a fallback if the two ever disagree — the backend is authoritative).
+  const draftConflicts = editingMapping ? computeConflicts(mappingDraft) : {};
+  const activeConflicts = editingMapping ? draftConflicts : result?.mapping_conflicts || {};
+  const conflictingSourceCols = new Set(Object.values(activeConflicts).flat());
+  const hasDraftConflicts = Object.keys(draftConflicts).length > 0;
 
   return (
     <Shell title="Upload cycle" navItems={navItems()} cycleLabel={undefined}>
@@ -174,11 +222,25 @@ export default function Upload() {
                 {result.mapping_source === "ai" || result.mapping_source === "mock" ? "AI matched" : "Cached"} · edit
               </button>
             ) : (
-              <button onClick={confirmMapping} className="btn btn-dark px-3 py-1 text-[11px]">
+              <button
+                onClick={confirmMapping}
+                disabled={hasDraftConflicts || uploading}
+                className="btn btn-dark px-3 py-1 text-[11px]"
+                title={hasDraftConflicts ? "Resolve the mapping conflict below first" : undefined}
+              >
                 Confirm mapping
               </button>
             )}
           </div>
+          {Object.keys(activeConflicts).length > 0 && (
+            <div className="mb-3 rounded-md border border-[#f4c9c3] bg-[#fdf3f2] px-3 py-2 text-[12px] text-[#b91c1c]">
+              <span className="font-semibold">Mapping conflict:</span>{" "}
+              {Object.entries(activeConflicts)
+                .map(([field, cols]) => `"${cols.join('" and "')}" both map to ${field}`)
+                .join("; ")}
+              . Two columns can't map to the same field — change one below.
+            </div>
+          )}
           <table className="table-clean">
             <thead>
               <tr>
@@ -187,33 +249,43 @@ export default function Upload() {
               </tr>
             </thead>
             <tbody>
-              {Object.entries(result.mapping).map(([source, field]) => (
-                <tr key={source}>
-                  <td>{source}</td>
-                  <td>
-                    {editingMapping ? (
-                      <select
-                        className="rounded border border-[#d8d8d8] px-1.5 py-1 text-[12px]"
-                        value={mappingDraft[source] ?? ""}
-                        onChange={(e) =>
-                          setMappingDraft((prev) => ({ ...prev, [source]: e.target.value || null }))
-                        }
-                      >
-                        <option value="">— unmapped —</option>
-                        {CANONICAL_FIELDS.map((f) => (
-                          <option key={f} value={f}>
-                            {f}
-                          </option>
-                        ))}
-                      </select>
-                    ) : field ? (
-                      <span className="font-medium text-[#111]">{field}</span>
-                    ) : (
-                      <span className="font-medium text-[#b45309]">? unsure — confirm</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {Object.entries(editingMapping ? mappingDraft : result.mapping).map(([source, field]) => {
+                const conflicted = conflictingSourceCols.has(source);
+                return (
+                  <tr key={source} className={conflicted ? "bg-[#fdf3f2]" : undefined}>
+                    <td>
+                      {source}
+                      {conflicted && <span className="ml-1 text-[#b91c1c]">⚠</span>}
+                    </td>
+                    <td>
+                      {editingMapping ? (
+                        <select
+                          className={`rounded border px-1.5 py-1 text-[12px] ${
+                            conflicted ? "border-[#e37a70]" : "border-[#d8d8d8]"
+                          }`}
+                          value={mappingDraft[source] ?? ""}
+                          onChange={(e) =>
+                            setMappingDraft((prev) => ({ ...prev, [source]: e.target.value || null }))
+                          }
+                        >
+                          <option value="">— unmapped —</option>
+                          {CANONICAL_FIELDS.map((f) => (
+                            <option key={f} value={f}>
+                              {f}
+                            </option>
+                          ))}
+                        </select>
+                      ) : field ? (
+                        <span className={`font-medium ${conflicted ? "text-[#b91c1c]" : "text-[#111]"}`}>
+                          {field}
+                        </span>
+                      ) : (
+                        <span className="font-medium text-[#b45309]">? unsure — confirm</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           <p className="mt-2 text-[11px] text-[#8a8a8a]">Mapping is remembered for next month.</p>
@@ -225,7 +297,39 @@ export default function Upload() {
           <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#8a8a8a]">
             Step 3 — Result (immediate)
           </div>
-          {problems.length === 0 ? (
+          {result.blocked ? (
+            <div className="rounded-md border border-[#f4c9c3] bg-[#fdf3f2] px-4 py-4">
+              <div className="mb-1 text-[13px] font-semibold text-[#b91c1c]">
+                {result.block_reason === "mapping_conflict"
+                  ? "Mapping conflict — fix it above before this can be checked"
+                  : "This doesn't look like payroll data"}
+              </div>
+              <p className="text-[12.5px] text-[#7a2e28]">{result.message}</p>
+              {result.block_reason === "not_payroll_shaped" && result.missing_fields && (
+                <p className="mt-2 text-[12px] text-[#7a2e28]">
+                  Missing from the mapping: {result.missing_fields.join(", ")}. No column in this
+                  file was mapped to {result.missing_fields.length === 1 ? "this field" : "these fields"}.
+                </p>
+              )}
+              <div className="mt-3 flex gap-2">
+                {result.block_reason === "mapping_conflict" ? (
+                  <button className="btn btn-dark px-3 py-1.5 text-[11px]" onClick={() => setEditingMapping(true)}>
+                    Fix the mapping above
+                  </button>
+                ) : (
+                  <button className="btn btn-outline px-3 py-1.5 text-[11px]" onClick={() => setEditingMapping(true)}>
+                    Review the mapping
+                  </button>
+                )}
+                <button
+                  className="btn btn-outline px-3 py-1.5 text-[11px]"
+                  onClick={() => fileRef.current?.click()}
+                >
+                  Upload a different file
+                </button>
+              </div>
+            </div>
+          ) : problems.length === 0 ? (
             <div className="rounded-md bg-[#e8f5ec] px-3 py-3 text-[13px] font-semibold text-[#15803d]">
               No problems found — every row looks clean.
             </div>

@@ -13,6 +13,8 @@ import json
 import re
 from app.config import ANTHROPIC_API_KEY, AI_MODEL
 
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
 CANONICAL_FIELDS = ["staff_id", "full_name", "overtime_hours", "basic_pay", "allowances"]
 
 _client = None
@@ -81,14 +83,19 @@ def map_columns(source_columns: list[str], sample_rows: list[dict]) -> dict:
             except Exception:
                 pass
 
-    # Mock fallback: fuzzy match against known synonyms
+    # Mock fallback: fuzzy match against known synonyms, order-independent
+    # (e.g. "OT Hrs" and "Hrs OT" must both match overtime_hours).
     mapping = {}
     for col in source_columns:
-        norm = col.strip().lower().rstrip(".")
+        tokens = set(_TOKEN_RE.findall(col.lower()))
         matched = None
         for field, synonyms in _HEADER_SYNONYMS.items():
-            if norm in synonyms or any(norm == s or norm in s or s in norm for s in synonyms):
-                matched = field
+            for syn in synonyms:
+                syn_tokens = set(_TOKEN_RE.findall(syn))
+                if tokens == syn_tokens or (syn_tokens and syn_tokens.issubset(tokens)):
+                    matched = field
+                    break
+            if matched:
                 break
         mapping[col] = matched
     return {"mapping": mapping, "source": "mock"}
@@ -130,6 +137,68 @@ def explain_anomaly(candidate: dict, row: dict, employee, department_name: str) 
                 pass
 
     return _mock_explain_anomaly(candidate, row, employee, department_name)
+
+
+def explain_anomalies_batch(items: list[dict], department_name: str) -> list[dict]:
+    """Same judgement as explain_anomaly, but for every candidate row in a
+    submission in ONE round-trip instead of one Claude call per row.
+
+    A submission with several dozen anomalous rows previously made that many
+    sequential blocking API calls during /submissions/upload -- easily the
+    single biggest source of a slow-feeling upload once a real
+    ANTHROPIC_API_KEY is configured (the mock fallback is local and fast
+    either way, so this only matters for live AI).
+
+    `items`: [{"candidate": ..., "full_name": ..., "staff_id": ...,
+                "avg_overtime_hours": ...}, ...]
+    Returns a list of judgements in the same order and length as `items`,
+    always -- even a partially-malformed AI response is backfilled with the
+    mock so the caller never has to special-case a short list.
+    """
+    if not items:
+        return []
+
+    if _client:
+        prompt = (
+            f"Department: {department_name}\n"
+            f"{len(items)} payroll rows passed structural validation but look statistically "
+            f"unusual. Judge each independently.\n"
+            f"Rows: {json.dumps(items, default=str)}\n"
+            "For each row (in the same order), judge severity (high, med, or low) and write a "
+            "short plain-English explanation (1-2 sentences) plus a short recommended action. "
+            "Do not calculate or state any payment amount as fact — only compare submitted vs "
+            "usual. Return ONLY a JSON array, one object per row, same order and length as the "
+            "input: [{\"severity\": \"high|med|low\", \"explanation\": \"...\", "
+            "\"recommended_action\": \"...\"}, ...]"
+        )
+        raw = _call_claude(
+            "You are a payroll anomaly reviewer. You judge and explain; you never compute or "
+            "authorize payments. Respond with a strict JSON array only.",
+            prompt,
+            max_tokens=400 * len(items) + 200,
+        )
+        if raw:
+            try:
+                match = re.search(r"\[.*\]", raw, re.DOTALL)
+                data = json.loads(match.group(0)) if match else None
+                if isinstance(data, list) and len(data) == len(items):
+                    results = []
+                    for item, judged in zip(items, data):
+                        if isinstance(judged, dict) and "explanation" in judged:
+                            judged.setdefault("severity", "med")
+                            judged["source"] = "ai"
+                            results.append(judged)
+                        else:
+                            results.append(_mock_explain_anomaly(
+                                item["candidate"], item, item.get("employee"), department_name))
+                    return results
+            except Exception:
+                pass
+
+    return [
+        _mock_explain_anomaly(item["candidate"], item, item.get("employee"), department_name)
+        for item in items
+    ]
 
 
 def _mock_explain_anomaly(candidate: dict, row: dict, employee, department_name: str) -> dict:

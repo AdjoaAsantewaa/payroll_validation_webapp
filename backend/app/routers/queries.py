@@ -29,7 +29,9 @@ def draft_query(payload: dict = Body(...), db: Session = Depends(get_db),
         raise HTTPException(status_code=404, detail="Department not found")
     cycle = _current_cycle(db)
     submission = db.query(Submission).filter(
-        Submission.department_id == department_id, Submission.cycle_id == cycle.id).first()
+        Submission.department_id == department_id, Submission.cycle_id == cycle.id,
+        Submission.is_current == True,  # noqa: E712
+    ).first()
     if not submission:
         raise HTTPException(status_code=404, detail="No submission for this department this cycle")
 
@@ -68,7 +70,9 @@ def send_query(payload: dict = Body(...), db: Session = Depends(get_db),
 
     cycle = _current_cycle(db)
     submission = db.query(Submission).filter(
-        Submission.department_id == department_id, Submission.cycle_id == cycle.id).first()
+        Submission.department_id == department_id, Submission.cycle_id == cycle.id,
+        Submission.is_current == True,  # noqa: E712
+    ).first()
     if not submission:
         raise HTTPException(status_code=404, detail="No submission for this department this cycle")
 
@@ -99,6 +103,14 @@ def approve_submission(submission_id: int, db: Session = Depends(get_db),
     submission = db.query(Submission).filter(Submission.id == submission_id).first()
     if not submission:
         raise HTTPException(status_code=404, detail="Submission not found")
+
+    if (submission.last_activity or "").startswith("Blocked"):
+        raise HTTPException(
+            status_code=400,
+            detail="This submission was blocked before validation ran (mapping conflict or the "
+                   "file doesn't look like payroll data) and has never actually been checked. "
+                   "It cannot be approved until the submitter fixes and re-uploads.",
+        )
 
     blocking = db.query(ExceptionModel).filter(
         ExceptionModel.submission_id == submission_id,

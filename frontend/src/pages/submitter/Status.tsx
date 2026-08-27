@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Shell } from "../../components/Shell";
+import { SubmissionDetailModal } from "../../components/SubmissionDetailModal";
 import { api } from "../../api/client";
 import type { ExceptionItem } from "../../types";
 
@@ -9,6 +10,7 @@ interface StatusResponse {
   department: string;
   submission: {
     id: number | null;
+    version: number | null;
     status: string;
     row_count: number;
     self_fixed_count: number;
@@ -16,11 +18,20 @@ interface StatusResponse {
     filename: string | null;
   };
   open_questions: ExceptionItem[];
-  earlier_cycles: { cycle: string; rows: number; outcome: string }[];
+  previous_versions: {
+    submission_id: number;
+    version: number;
+    rows: number;
+    filename: string | null;
+    uploaded_at: string | null;
+    superseded_at: string | null;
+  }[];
+  earlier_cycles: { submission_id: number; cycle: string; rows: number; outcome: string }[];
 }
 
 export default function Status() {
   const [data, setData] = useState<StatusResponse | null>(null);
+  const [viewingSubmission, setViewingSubmission] = useState<number | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -64,10 +75,18 @@ export default function Status() {
               {submission.self_fixed_count > 0 && (
                 <TimelineStep label="You fixed" detail={`${submission.self_fixed_count}`} />
               )}
-              <div className="mt-2">
+              <div className="mt-2 flex gap-2">
                 <button className="btn btn-outline" onClick={() => navigate("/submitter/upload")}>
                   Go to upload
                 </button>
+                {submission.id && (
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => setViewingSubmission(submission.id)}
+                  >
+                    View current submission
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -101,6 +120,45 @@ export default function Status() {
         </div>
       </div>
 
+      {data.previous_versions.length > 0 && (
+        <div className="mt-6">
+          <div className="mb-2 text-[12px] font-semibold text-[#333]">
+            Earlier uploads this cycle
+          </div>
+          <div className="card overflow-hidden">
+            <table className="table-clean">
+              <thead>
+                <tr>
+                  <th>Version</th>
+                  <th>Rows</th>
+                  <th>Uploaded</th>
+                  <th>Superseded</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.previous_versions.map((v) => (
+                  <tr key={v.submission_id}>
+                    <td>v{v.version}</td>
+                    <td>{v.rows}</td>
+                    <td className="text-[#8a8a8a]">{formatTime(v.uploaded_at)}</td>
+                    <td className="text-[#8a8a8a]">{formatTime(v.superseded_at)}</td>
+                    <td className="text-right text-[#1d4ed8]">
+                      <button
+                        className="hover:underline"
+                        onClick={() => setViewingSubmission(v.submission_id)}
+                      >
+                        View submission
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className="mt-6">
         <div className="mb-2 text-[12px] font-semibold text-[#333]">Earlier cycles</div>
         <div className="card overflow-hidden">
@@ -122,12 +180,17 @@ export default function Status() {
                 </tr>
               )}
               {data.earlier_cycles.map((c) => (
-                <tr key={c.cycle}>
+                <tr key={c.submission_id}>
                   <td>{c.cycle}</td>
                   <td>{c.rows}</td>
                   <td className="text-[#8a8a8a]">{c.outcome}</td>
                   <td className="text-right text-[#1d4ed8]">
-                    <span className="cursor-pointer hover:underline">View file</span>
+                    <button
+                      className="hover:underline"
+                      onClick={() => setViewingSubmission(c.submission_id)}
+                    >
+                      View submission
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -135,6 +198,13 @@ export default function Status() {
           </table>
         </div>
       </div>
+
+      {viewingSubmission && (
+        <SubmissionDetailModal
+          submissionId={viewingSubmission}
+          onClose={() => setViewingSubmission(null)}
+        />
+      )}
     </Shell>
   );
 }

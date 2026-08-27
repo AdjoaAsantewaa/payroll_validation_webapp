@@ -64,3 +64,24 @@ export interface ExceptionItem {
     allowances: number | null;
   } | null;
 }
+
+export interface SubmissionDetail {
+  id: number;
+  department: string;
+  department_id: number;
+  cycle: string;
+  version: number;
+  is_current: boolean;
+  status: string;
+  row_count: number;
+  self_fixed_count: number;
+  filename: string | null;
+  submitted_by: string | null;
+  uploaded_at: string | null;
+  approved_at: string | null;
+  approved_by: string | null;
+  superseded_at: string | null;
+  exceptions: ExceptionItem[];
+  queries: { subject: string; status: string; sent_at: string | null; to_emails: string | null }[];
+  file_retained: boolean;
+}

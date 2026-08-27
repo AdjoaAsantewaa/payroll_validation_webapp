@@ -2,7 +2,8 @@ import datetime
 import enum
 
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, JSON, Enum
+    Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, JSON, Enum,
+    UniqueConstraint, Index, text
 )
 from sqlalchemy.orm import relationship
 
@@ -118,11 +119,37 @@ class ColumnMapping(Base):
 
 
 class Submission(Base):
+    """One row per *version* of a department's payroll file for a cycle.
+
+    Uploading a fresh file never mutates history: it supersedes the previous
+    current version (is_current=False) and inserts a new row (version+1).
+    Editing the column mapping of the same upload (remap) is not a new file,
+    so it updates the current version in place instead.
+
+    At most one row can be is_current=True per (department_id, cycle_id) —
+    enforced by a partial unique index, not just application logic, so a
+    race between two concurrent uploads can't silently create two "current"
+    submissions that both get counted (the root cause of a dashboard/
+    submitter count mismatch: aggregation code that summed all submissions
+    for a department+cycle instead of just the current one).
+    """
     __tablename__ = "submissions"
+    __table_args__ = (
+        UniqueConstraint("department_id", "cycle_id", "version", name="uq_submission_dept_cycle_version"),
+        Index(
+            "uq_submission_one_current_per_dept_cycle",
+            "department_id", "cycle_id",
+            unique=True,
+            sqlite_where=text("is_current"),
+            postgresql_where=text("is_current"),
+        ),
+    )
 
     id = Column(Integer, primary_key=True)
-    cycle_id = Column(Integer, ForeignKey("cycles.id"), nullable=False)
-    department_id = Column(Integer, ForeignKey("departments.id"), nullable=False)
+    cycle_id = Column(Integer, ForeignKey("cycles.id"), nullable=False, index=True)
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=False, index=True)
+    version = Column(Integer, nullable=False, default=1)
+    is_current = Column(Boolean, nullable=False, default=True)
     submitted_by = Column(String, nullable=True)
     filename = Column(String, nullable=True)
     uploaded_at = Column(DateTime, nullable=True)
@@ -132,6 +159,7 @@ class Submission(Base):
     last_activity = Column(String, nullable=True)
     approved_at = Column(DateTime, nullable=True)
     approved_by = Column(String, nullable=True)
+    superseded_at = Column(DateTime, nullable=True)
 
     cycle = relationship("Cycle")
     department = relationship("Department")
@@ -143,7 +171,7 @@ class SubmissionRow(Base):
     __tablename__ = "submission_rows"
 
     id = Column(Integer, primary_key=True)
-    submission_id = Column(Integer, ForeignKey("submissions.id"), nullable=False)
+    submission_id = Column(Integer, ForeignKey("submissions.id"), nullable=False, index=True)
     row_index = Column(Integer, nullable=False)
     staff_id = Column(String, nullable=True)
     full_name = Column(String, nullable=True)
@@ -159,7 +187,7 @@ class Exception(Base):
     __tablename__ = "exceptions"
 
     id = Column(Integer, primary_key=True)
-    submission_id = Column(Integer, ForeignKey("submissions.id"), nullable=False)
+    submission_id = Column(Integer, ForeignKey("submissions.id"), nullable=False, index=True)
     row_id = Column(Integer, ForeignKey("submission_rows.id"), nullable=True)
     row_label = Column(String, nullable=True)
     field = Column(String, nullable=True)
@@ -170,7 +198,7 @@ class Exception(Base):
     usual_value = Column(String, nullable=True)
     ai_explanation = Column(Text, nullable=True)
     recommended_action = Column(String, nullable=True)
-    status = Column(Enum(ExceptionStatus), default=ExceptionStatus.open)
+    status = Column(Enum(ExceptionStatus), default=ExceptionStatus.open, index=True)
     note = Column(Text, nullable=True)
     created_at = Column(DateTime, default=utcnow)
     resolved_at = Column(DateTime, nullable=True)

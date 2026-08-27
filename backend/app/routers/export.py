@@ -4,7 +4,7 @@ import io
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models import Submission, SubmissionStatus, SubmissionRow, Cycle, User, AuditLog
@@ -21,7 +21,9 @@ def _current_cycle(db: Session) -> Cycle:
 @router.get("/export/preview")
 def export_preview(db: Session = Depends(get_db), user: User = Depends(require_specialist)):
     cycle = _current_cycle(db)
-    submissions = db.query(Submission).filter(Submission.cycle_id == cycle.id).all()
+    submissions = db.query(Submission).options(joinedload(Submission.department)).filter(
+        Submission.cycle_id == cycle.id, Submission.is_current == True  # noqa: E712
+    ).all()
     ready = [s for s in submissions if s.status == SubmissionStatus.approved]
     not_ready = [s for s in submissions if s.status != SubmissionStatus.approved
                  and s.status != SubmissionStatus.not_submitted]
@@ -59,7 +61,9 @@ def export_clean_data(payload: dict = Body(...), db: Session = Depends(get_db),
     if not submission_ids:
         raise HTTPException(status_code=400, detail="submission_ids is required")
 
-    submissions = db.query(Submission).filter(Submission.id.in_(submission_ids)).all()
+    submissions = db.query(Submission).options(joinedload(Submission.department)).filter(
+        Submission.id.in_(submission_ids), Submission.is_current == True  # noqa: E712
+    ).all()
     not_approved = [s for s in submissions if s.status != SubmissionStatus.approved]
     if not_approved:
         names = ", ".join(s.department.name for s in not_approved)

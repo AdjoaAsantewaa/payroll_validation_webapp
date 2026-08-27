@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models import (
@@ -18,7 +18,18 @@ def _current_cycle(db: Session) -> Cycle:
 @router.get("")
 def get_dashboard(db: Session = Depends(get_db), user=Depends(require_specialist)):
     cycle = _current_cycle(db)
-    submissions = db.query(Submission).filter(Submission.cycle_id == cycle.id).all()
+    # is_current is load-bearing: without it, a department with a superseded
+    # (resubmitted-over) submission would have its old exceptions/self-fixed
+    # counts summed on top of the current version's — this was the root
+    # cause of the specialist dashboard showing far more exceptions than the
+    # submitter's own current row count.
+    # joinedload: without it, every s.department / e.submission.department
+    # access below is a separate lazy-loaded round trip -- fine on local
+    # SQLite (sub-millisecond), but a real, avoidable cost against a remote
+    # Postgres connection (Supabase). One JOIN instead of up to ~N+1 queries.
+    submissions = db.query(Submission).options(joinedload(Submission.department)).filter(
+        Submission.cycle_id == cycle.id, Submission.is_current == True  # noqa: E712
+    ).all()
 
     total_depts = db.query(Department).count()
     submitted = [s for s in submissions if s.status != SubmissionStatus.not_submitted]
@@ -28,7 +39,7 @@ def get_dashboard(db: Session = Depends(get_db), user=Depends(require_specialist
     open_exceptions = (
         db.query(ExceptionModel)
         .join(Submission, ExceptionModel.submission_id == Submission.id)
-        .filter(Submission.cycle_id == cycle.id)
+        .filter(Submission.cycle_id == cycle.id, Submission.is_current == True)  # noqa: E712
         .filter(ExceptionModel.status.in_([ExceptionStatus.open, ExceptionStatus.query_open]))
         .all()
     )

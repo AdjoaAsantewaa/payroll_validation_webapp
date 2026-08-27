@@ -2,11 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Shell } from "../../components/Shell";
 import { SeverityBadge, SourceBadge } from "../../components/StatusBadge";
+import { SubmissionDetailModal } from "../../components/SubmissionDetailModal";
 import { api, ApiError } from "../../api/client";
 import type { ExceptionItem } from "../../types";
 
 interface ListResponse {
-  submission: { id: number; department: string; department_id: number; row_count: number; status: string } | null;
+  submission: {
+    id: number; department: string; department_id: number; row_count: number; status: string;
+    last_activity: string | null;
+  } | null;
   exceptions: ExceptionItem[];
   counts: { all: number; high: number; med: number; low: number };
 }
@@ -24,6 +28,7 @@ export default function ExceptionReview() {
   const [history, setHistory] = useState<number[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [viewingSubmission, setViewingSubmission] = useState<number | null>(null);
 
   async function load() {
     const d = await api.get<ListResponse>(`/exceptions?submission_id=${submissionId}`);
@@ -120,10 +125,18 @@ export default function ExceptionReview() {
             {sub?.department} · Exception review
           </h1>
           <p className="mt-0.5 text-[13px] text-[#8a8a8a]">
-            {sub?.row_count} rows · {data.counts.all} exceptions
+            <span className="font-medium text-[#333]">{sub?.row_count} rows</span>
+            {" · "}
+            <span className="font-medium text-[#333]">{data.counts.all} issues</span>
+            <span className="ml-1 text-[#a8a8a8]">(rows submitted vs. distinct validation findings)</span>
           </p>
         </div>
         <div className="flex gap-2">
+          {sub && (
+            <button className="btn btn-ghost" onClick={() => setViewingSubmission(sub.id)}>
+              View submission details
+            </button>
+          )}
           <button
             className="btn btn-outline"
             disabled={!sub}
@@ -131,11 +144,24 @@ export default function ExceptionReview() {
           >
             Send query to department
           </button>
-          <button className="btn btn-dark" disabled={busy} onClick={approve}>
+          <button
+            className="btn btn-dark"
+            disabled={busy || !!sub?.last_activity?.startsWith("Blocked")}
+            title={sub?.last_activity?.startsWith("Blocked") ? "This upload was never validated" : undefined}
+            onClick={approve}
+          >
             Approve submission
           </button>
         </div>
       </div>
+
+      {sub?.last_activity?.startsWith("Blocked") && (
+        <div className="mb-4 rounded-md border border-[#f6dfae] bg-[#fdf7ec] px-3 py-2.5 text-[12.5px] text-[#8a6416]">
+          <span className="font-semibold">0 issues here isn't a clean submission.</span>{" "}
+          This upload was blocked before validation ran — {sub.last_activity.replace("Blocked — ", "").toLowerCase()}
+          . The submitter needs to fix and re-upload; nothing has been checked yet.
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 rounded-md bg-[#fdecec] px-3 py-2 text-[12px] text-[#b91c1c]">
@@ -308,6 +334,13 @@ export default function ExceptionReview() {
           )}
         </div>
       </div>
+
+      {viewingSubmission && (
+        <SubmissionDetailModal
+          submissionId={viewingSubmission}
+          onClose={() => setViewingSubmission(null)}
+        />
+      )}
     </Shell>
   );
 }

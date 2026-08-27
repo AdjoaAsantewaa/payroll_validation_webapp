@@ -35,6 +35,7 @@ def list_exceptions(submission_id: int = None, db: Session = Depends(get_db),
             "id": submission.id, "department": submission.department.name,
             "department_id": submission.department_id,
             "row_count": submission.row_count, "status": submission.status.value,
+            "last_activity": submission.last_activity,
         } if submission else None,
         "exceptions": [_exc_to_dict(e) for e in exceptions],
         "counts": {

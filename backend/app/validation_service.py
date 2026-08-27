@@ -18,14 +18,12 @@ def _source(s: str) -> ExceptionSource:
 
 
 def validate_and_persist(db: Session, submission: Submission, rows: list[dict],
-                          department_id: int, department_name: str) -> dict:
+                          department_id: int, department_name: str,
+                          skip_validation: bool = False) -> dict:
     # Clear previous rows/exceptions for a clean re-validation (upload/remap/resubmit)
     db.query(ExceptionModel).filter(ExceptionModel.submission_id == submission.id).delete()
     db.query(SubmissionRow).filter(SubmissionRow.submission_id == submission.id).delete()
     db.flush()
-
-    employees = db.query(Employee).filter(Employee.department_id == department_id).all()
-    employees_by_id = {e.staff_id: e for e in employees}
 
     row_objs = {}
     for row in rows:
@@ -38,6 +36,20 @@ def validate_and_persist(db: Session, submission: Submission, rows: list[dict],
         db.add(r)
         row_objs[row["row_index"]] = r
     db.flush()
+
+    if skip_validation:
+        # The file/mapping was rejected before validation ever ran (mapping
+        # conflict or not payroll-shaped) -- rows are still persisted so the
+        # submitter can fix the mapping via /remap without re-uploading, but
+        # no rule/AI checks run and no exceptions are created against them.
+        submission.row_count = len(rows)
+        submission.status = submission.status.__class__.needs_review
+        db.commit()
+        db.refresh(submission)
+        return {"submission_id": submission.id, "row_count": len(rows), "exceptions": []}
+
+    employees = db.query(Employee).filter(Employee.department_id == department_id).all()
+    employees_by_id = {e.staff_id: e for e in employees}
 
     rule_exceptions = rules_engine.validate_rows(rows, employees_by_id)
     flagged_row_indices = {e["row_index"] for e in rule_exceptions}
@@ -52,8 +64,13 @@ def validate_and_persist(db: Session, submission: Submission, rows: list[dict],
             usual_value=exc.get("usual_value"),
         ))
 
-    # AI judgement only on rows that passed every rule check
+    # AI judgement only on rows that passed every rule check. Candidates are
+    # collected first and judged in a single batched AI call (see
+    # ai_service.explain_anomalies_batch) rather than one call per row --
+    # with a live ANTHROPIC_API_KEY, a submission with many anomalous rows
+    # used to make that many sequential blocking API calls during upload.
     total_submitted_pay = 0.0
+    ai_candidates: list[dict] = []
     for row in rows:
         if row["row_index"] in flagged_row_indices:
             continue
@@ -65,32 +82,20 @@ def validate_and_persist(db: Session, submission: Submission, rows: list[dict],
 
         candidate = rules_engine.detect_overtime_candidate(row, employee)
         if candidate:
-            judged = ai_service.explain_anomaly(candidate, row, employee, department_name)
-            db.add(ExceptionModel(
-                submission_id=submission.id, row_id=row_objs[row["row_index"]].id,
-                row_label=f"Row {row['row_index']}", field="overtime_hours",
-                severity=_severity(judged.get("severity", "med")), source=ExceptionSource.ai,
-                issue_text=judged.get("explanation", "")[:120],
-                submitted_value=str(candidate["submitted_value"]),
-                usual_value=f"{candidate['usual_value']:g} avg",
-                ai_explanation=judged.get("explanation"),
-                recommended_action=judged.get("recommended_action"),
-            ))
+            ai_candidates.append({
+                "kind": "row", "row_index": row["row_index"], "field": "overtime_hours",
+                "candidate": candidate, "full_name": row.get("full_name"),
+                "staff_id": row.get("staff_id"),
+            })
             continue
 
         allowance_candidate = rules_engine.detect_allowance_candidate(row, employee)
         if allowance_candidate:
-            judged = ai_service.explain_anomaly(allowance_candidate, row, employee, department_name)
-            db.add(ExceptionModel(
-                submission_id=submission.id, row_id=row_objs[row["row_index"]].id,
-                row_label=f"Row {row['row_index']}", field="allowances",
-                severity=_severity(judged.get("severity", "med")), source=ExceptionSource.ai,
-                issue_text=judged.get("explanation", "")[:120],
-                submitted_value=str(allowance_candidate["submitted_value"]),
-                usual_value=str(allowance_candidate["usual_value"]),
-                ai_explanation=judged.get("explanation"),
-                recommended_action=judged.get("recommended_action"),
-            ))
+            ai_candidates.append({
+                "kind": "row", "row_index": row["row_index"], "field": "allowances",
+                "candidate": allowance_candidate, "full_name": row.get("full_name"),
+                "staff_id": row.get("staff_id"),
+            })
 
     # Department-level wage bill variance (aggregate, not tied to a single row)
     usual_total = sum((e.basic_pay or 0) + (e.allowances or 0) for e in employees)
@@ -99,16 +104,33 @@ def validate_and_persist(db: Session, submission: Submission, rows: list[dict],
     variance = rules_engine.detect_wage_bill_variance(
         department_name, total_submitted_pay, usual_total, submitted_headcount, usual_headcount)
     if variance:
-        judged = ai_service.explain_anomaly(variance, {"full_name": None, "staff_id": None},
-                                             None, department_name)
-        db.add(ExceptionModel(
-            submission_id=submission.id, row_id=None, row_label="Department total",
-            field="wage_bill", severity=_severity(judged.get("severity", "med")),
-            source=ExceptionSource.ai, issue_text=judged.get("explanation", "")[:120],
-            submitted_value=f"{variance['variance_pct']:g}%", usual_value="0% (no headcount change)",
-            ai_explanation=judged.get("explanation"),
-            recommended_action=judged.get("recommended_action"),
-        ))
+        ai_candidates.append({"kind": "dept", "field": "wage_bill", "candidate": variance})
+
+    judgements = ai_service.explain_anomalies_batch(ai_candidates, department_name)
+    for item, judged in zip(ai_candidates, judgements):
+        candidate = item["candidate"]
+        if item["kind"] == "row":
+            usual_value = (f"{candidate['usual_value']:g} avg" if item["field"] == "overtime_hours"
+                            else str(candidate["usual_value"]))
+            db.add(ExceptionModel(
+                submission_id=submission.id, row_id=row_objs[item["row_index"]].id,
+                row_label=f"Row {item['row_index']}", field=item["field"],
+                severity=_severity(judged.get("severity", "med")), source=ExceptionSource.ai,
+                issue_text=judged.get("explanation", "")[:120],
+                submitted_value=str(candidate["submitted_value"]), usual_value=usual_value,
+                ai_explanation=judged.get("explanation"),
+                recommended_action=judged.get("recommended_action"),
+            ))
+        else:
+            db.add(ExceptionModel(
+                submission_id=submission.id, row_id=None, row_label="Department total",
+                field="wage_bill", severity=_severity(judged.get("severity", "med")),
+                source=ExceptionSource.ai, issue_text=judged.get("explanation", "")[:120],
+                submitted_value=f"{candidate['variance_pct']:g}%",
+                usual_value="0% (no headcount change)",
+                ai_explanation=judged.get("explanation"),
+                recommended_action=judged.get("recommended_action"),
+            ))
 
     db.flush()
     exceptions = db.query(ExceptionModel).filter(
