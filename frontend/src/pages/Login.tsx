@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ApiError } from "../api/client";
+import { homeForRole } from "../types";
 
 export default function Login() {
   const { login } = useAuth();
@@ -17,7 +18,7 @@ export default function Login() {
     setSubmitting(true);
     try {
       const user = await login(email, password);
-      navigate(user.role === "specialist" ? "/dashboard" : "/submitter/status");
+      navigate(homeForRole(user.role));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong");
     } finally {

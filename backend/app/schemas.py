@@ -16,7 +16,6 @@ class LoginResponse(BaseModel):
     email: str
     department: Optional[str] = None
     department_id: Optional[int] = None
-    is_admin: bool = False
 
 
 class ExceptionDecisionRequest(BaseModel):

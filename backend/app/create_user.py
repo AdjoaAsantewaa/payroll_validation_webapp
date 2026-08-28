@@ -1,6 +1,6 @@
-"""Create a real login (specialist or submitter) without a public sign-up
-endpoint. Uses the same password hashing and User model as normal auth --
-this is not a separate auth system, just a command-line insert.
+"""Create a real login (admin, specialist, or submitter) without a public
+sign-up endpoint. Uses the same password hashing and User model as normal
+auth -- this is not a separate auth system, just a command-line insert.
 
 Usage (interactive):
     python -m app.create_user
@@ -11,6 +11,9 @@ Usage (non-interactive, e.g. for scripting/CI):
 
     python -m app.create_user --email you@company.com --password "..." \\
         --name "Your Name" --role submitter --department "Finance"
+
+    python -m app.create_user --email you@company.com --password "..." \\
+        --name "Your Name" --role admin
 
 Run this against whichever DATABASE_URL you want the account created in --
 export DATABASE_URL (or set it in backend/.env) to point at Supabase before
@@ -54,8 +57,8 @@ def create_user(email: str, password: str, name: str, role: str,
             print(f"A user with email {email} already exists (id={existing.id}, role={existing.role.value}).")
             sys.exit(1)
 
-        if role not in ("specialist", "submitter"):
-            print("role must be 'specialist' or 'submitter'")
+        if role not in ("specialist", "submitter", "admin"):
+            print("role must be 'specialist', 'submitter', or 'admin'")
             sys.exit(1)
 
         department_id = None
@@ -91,7 +94,7 @@ def main():
     parser.add_argument("--email")
     parser.add_argument("--password")
     parser.add_argument("--name")
-    parser.add_argument("--role", choices=["specialist", "submitter"])
+    parser.add_argument("--role", choices=["specialist", "submitter", "admin"])
     parser.add_argument("--department", help="Required for --role submitter")
     args = parser.parse_args()
 
@@ -100,8 +103,8 @@ def main():
     role = args.role
     if not role:
         role = ""
-        while role not in ("specialist", "submitter"):
-            role = input("Role (specialist/submitter): ").strip().lower()
+        while role not in ("specialist", "submitter", "admin"):
+            role = input("Role (specialist/submitter/admin): ").strip().lower()
 
     password = args.password
     if not password:

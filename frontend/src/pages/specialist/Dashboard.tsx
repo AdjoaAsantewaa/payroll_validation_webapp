@@ -3,14 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { Shell } from "../../components/Shell";
 import { StatusBadge } from "../../components/StatusBadge";
 import { api } from "../../api/client";
-import { useAuth } from "../../context/AuthContext";
 import type { DashboardData } from "../../types";
 
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const { user } = useAuth();
 
   async function load() {
     setLoading(true);
@@ -25,7 +23,7 @@ export default function Dashboard() {
 
   if (loading || !data) {
     return (
-      <Shell title="Dashboard" navItems={navItems(0, user?.is_admin)}>
+      <Shell title="Dashboard" navItems={navItems(0)}>
         <div className="text-sm text-[#8a8a8a]">Loading…</div>
       </Shell>
     );
@@ -59,7 +57,7 @@ export default function Dashboard() {
     <Shell
       title="Dashboard"
       cycleLabel={data.cycle.label}
-      navItems={navItems(data.pipeline.resolve, user?.is_admin)}
+      navItems={navItems(data.pipeline.resolve)}
     >
       <div className="mb-6 flex items-start justify-between">
         <div>
@@ -205,12 +203,10 @@ function formatCutoff(iso: string) {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 }
 
-function navItems(resolveCount: number, isAdmin?: boolean) {
-  const items = [
+function navItems(resolveCount: number) {
+  return [
     { label: "Dashboard", to: "/dashboard" },
     { label: "Exceptions", to: "/exceptions", badge: resolveCount },
     { label: "Query & export", to: "/query-export" },
   ];
-  if (isAdmin) items.push({ label: "Admin", to: "/admin/submitters" });
-  return items;
 }

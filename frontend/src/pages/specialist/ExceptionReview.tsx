@@ -4,7 +4,6 @@ import { Shell } from "../../components/Shell";
 import { SeverityBadge, SourceBadge } from "../../components/StatusBadge";
 import { SubmissionDetailModal } from "../../components/SubmissionDetailModal";
 import { api, ApiError } from "../../api/client";
-import { useAuth } from "../../context/AuthContext";
 import type { ExceptionItem } from "../../types";
 
 interface ListResponse {
@@ -21,7 +20,6 @@ type SevFilter = "all" | "high" | "med" | "low";
 export default function ExceptionReview() {
   const { submissionId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [data, setData] = useState<ListResponse | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [filter, setFilter] = useState<SevFilter>("all");
@@ -104,7 +102,7 @@ export default function ExceptionReview() {
 
   if (!data) {
     return (
-      <Shell breadcrumb="Dashboard" title="Exceptions" navItems={navItems(0, user?.is_admin)}>
+      <Shell breadcrumb="Dashboard" title="Exceptions" navItems={navItems(0)}>
         <div className="text-sm text-[#8a8a8a]">Loading…</div>
       </Shell>
     );
@@ -116,7 +114,7 @@ export default function ExceptionReview() {
     <Shell
       breadcrumb="Dashboard"
       title="Exceptions"
-      navItems={navItems(data.counts.all, user?.is_admin)}
+      navItems={navItems(data.counts.all)}
     >
       <div className="mb-4 flex items-start justify-between">
         <div>
@@ -347,12 +345,10 @@ export default function ExceptionReview() {
   );
 }
 
-function navItems(count: number, isAdmin?: boolean) {
-  const items = [
+function navItems(count: number) {
+  return [
     { label: "Dashboard", to: "/dashboard" },
     { label: "Exceptions", to: "/exceptions", badge: count },
     { label: "Query & export", to: "/query-export" },
   ];
-  if (isAdmin) items.push({ label: "Admin", to: "/admin/submitters" });
-  return items;
 }

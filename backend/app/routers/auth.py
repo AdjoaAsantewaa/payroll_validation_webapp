@@ -22,7 +22,6 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         email=user.email,
         department=user.department.name if user.department else None,
         department_id=user.department_id,
-        is_admin=user.is_admin,
     )
 
 
@@ -34,5 +33,4 @@ def me(user: User = Depends(get_current_user)):
         email=user.email,
         department=user.department.name if user.department else None,
         department_id=user.department_id,
-        is_admin=user.is_admin,
     )

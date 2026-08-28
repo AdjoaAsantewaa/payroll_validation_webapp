@@ -1,11 +1,9 @@
 import { useEffect, useState } from "react";
 import { Shell } from "../../components/Shell";
 import { api, ApiError } from "../../api/client";
-import { useAuth } from "../../context/AuthContext";
 import type { Department, Submitter } from "../../types";
 
-export default function AdminCreateSubmitter() {
-  const { user } = useAuth();
+export default function CreateSubmitter() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [submitters, setSubmitters] = useState<Submitter[]>([]);
   const [name, setName] = useState("");
@@ -56,7 +54,7 @@ export default function AdminCreateSubmitter() {
   }
 
   return (
-    <Shell title="Admin" navItems={navItems(!!user?.is_admin)}>
+    <Shell title="Create submitter" navItems={navItems()}>
       <div className="mb-6">
         <h1 className="text-[22px] font-bold tracking-tight">Create submitter</h1>
         <p className="mt-1 text-[13px] text-[#8a8a8a]">
@@ -157,12 +155,6 @@ export default function AdminCreateSubmitter() {
   );
 }
 
-function navItems(isAdmin: boolean) {
-  const items = [
-    { label: "Dashboard", to: "/dashboard" },
-    { label: "Exceptions", to: "/exceptions" },
-    { label: "Query & export", to: "/query-export" },
-  ];
-  if (isAdmin) items.push({ label: "Admin", to: "/admin/submitters" });
-  return items;
+function navItems() {
+  return [{ label: "Create submitter", to: "/admin" }];
 }

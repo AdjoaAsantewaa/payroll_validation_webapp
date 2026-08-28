@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Shell } from "../../components/Shell";
 import { api, ApiError } from "../../api/client";
-import { useAuth } from "../../context/AuthContext";
 import type { DashboardData } from "../../types";
 
 interface DraftResponse {
@@ -29,7 +28,6 @@ interface ExportPreview {
 }
 
 export default function QueryExport() {
-  const { user } = useAuth();
   const [params] = useSearchParams();
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [deptId, setDeptId] = useState<number | null>(
@@ -167,7 +165,7 @@ export default function QueryExport() {
       breadcrumb="Exceptions"
       title="Query & export"
       cycleLabel={dashboard?.cycle.label}
-      navItems={navItems(dashboard?.pipeline.resolve || 0, user?.is_admin)}
+      navItems={navItems(dashboard?.pipeline.resolve || 0)}
     >
       <h1 className="mb-1 text-[20px] font-bold tracking-tight">Query & export · {dashboard?.cycle.label}</h1>
       <p className="mb-5 text-[13px] text-[#8a8a8a]">
@@ -317,12 +315,10 @@ export default function QueryExport() {
   );
 }
 
-function navItems(count: number, isAdmin?: boolean) {
-  const items = [
+function navItems(count: number) {
+  return [
     { label: "Dashboard", to: "/dashboard" },
     { label: "Exceptions", to: "/exceptions", badge: count },
     { label: "Query & export", to: "/query-export" },
   ];
-  if (isAdmin) items.push({ label: "Admin", to: "/admin/submitters" });
-  return items;
 }

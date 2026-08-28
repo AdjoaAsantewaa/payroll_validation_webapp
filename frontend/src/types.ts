@@ -1,4 +1,4 @@
-export type Role = "specialist" | "submitter";
+export type Role = "specialist" | "submitter" | "admin";
 
 export interface AuthUser {
   access_token: string;
@@ -8,7 +8,12 @@ export interface AuthUser {
   email: string;
   department?: string | null;
   department_id?: number | null;
-  is_admin?: boolean;
+}
+
+export function homeForRole(role: Role): string {
+  if (role === "specialist") return "/dashboard";
+  if (role === "admin") return "/admin";
+  return "/submitter/status";
 }
 
 export interface Department {

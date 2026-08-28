@@ -17,6 +17,7 @@ def utcnow():
 class Role(str, enum.Enum):
     specialist = "specialist"
     submitter = "submitter"
+    admin = "admin"
 
 
 class EmployeeStatus(str, enum.Enum):
@@ -77,7 +78,6 @@ class User(Base):
     role = Column(Enum(Role), nullable=False)
     password_hash = Column(String, nullable=False)
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
-    is_admin = Column(Boolean, nullable=False, default=False, server_default="false")
 
     department = relationship("Department", back_populates="users")
 

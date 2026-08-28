@@ -1,12 +1,13 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { homeForRole } from "./types";
 import Login from "./pages/Login";
 import Dashboard from "./pages/specialist/Dashboard";
 import ExceptionsIndex from "./pages/specialist/ExceptionsIndex";
 import ExceptionReview from "./pages/specialist/ExceptionReview";
 import QueryExport from "./pages/specialist/QueryExport";
-import AdminCreateSubmitter from "./pages/specialist/AdminCreateSubmitter";
+import CreateSubmitter from "./pages/admin/CreateSubmitter";
 import Upload from "./pages/submitter/Upload";
 import Status from "./pages/submitter/Status";
 import AnswerQuery from "./pages/submitter/AnswerQuery";
@@ -14,7 +15,7 @@ import AnswerQuery from "./pages/submitter/AnswerQuery";
 function Root() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  return <Navigate to={user.role === "specialist" ? "/dashboard" : "/submitter/status"} replace />;
+  return <Navigate to={homeForRole(user.role)} replace />;
 }
 
 export default function App() {
@@ -59,10 +60,10 @@ export default function App() {
           />
 
           <Route
-            path="/admin/submitters"
+            path="/admin"
             element={
-              <ProtectedRoute role="specialist" requireAdmin>
-                <AdminCreateSubmitter />
+              <ProtectedRoute role="admin">
+                <CreateSubmitter />
               </ProtectedRoute>
             }
           />

@@ -64,22 +64,28 @@ export function Shell({ breadcrumb, title, cycleLabel, children, navItems }: She
         </nav>
 
         <div className="mt-auto border-t border-white/10 px-4 py-4">
-          <div className="mb-3 flex overflow-hidden rounded-md border border-white/15 text-[11px] font-semibold">
-            <span
-              className={`flex-1 px-2 py-1 text-center ${
-                user?.role === "specialist" ? "bg-white text-[#0c0d0f]" : "text-white/50"
-              }`}
-            >
-              Specialist
-            </span>
-            <span
-              className={`flex-1 px-2 py-1 text-center ${
-                user?.role === "submitter" ? "bg-white text-[#0c0d0f]" : "text-white/50"
-              }`}
-            >
-              Submitter
-            </span>
-          </div>
+          {user?.role === "admin" ? (
+            <div className="mb-3 overflow-hidden rounded-md border border-white/15 bg-white px-2 py-1 text-center text-[11px] font-semibold text-[#0c0d0f]">
+              Admin
+            </div>
+          ) : (
+            <div className="mb-3 flex overflow-hidden rounded-md border border-white/15 text-[11px] font-semibold">
+              <span
+                className={`flex-1 px-2 py-1 text-center ${
+                  user?.role === "specialist" ? "bg-white text-[#0c0d0f]" : "text-white/50"
+                }`}
+              >
+                Specialist
+              </span>
+              <span
+                className={`flex-1 px-2 py-1 text-center ${
+                  user?.role === "submitter" ? "bg-white text-[#0c0d0f]" : "text-white/50"
+                }`}
+              >
+                Submitter
+              </span>
+            </div>
+          )}
           <button
             onClick={() => {
               logout();
@@ -93,7 +99,11 @@ export function Shell({ breadcrumb, title, cycleLabel, children, navItems }: She
             <span className="flex flex-col leading-tight">
               <span className="text-[12px] font-semibold">{user?.name}</span>
               <span className="text-[10px] text-white/45">
-                {user?.role === "specialist" ? "Specialist" : user?.department}
+                {user?.role === "specialist"
+                  ? "Specialist"
+                  : user?.role === "admin"
+                    ? "Admin"
+                    : user?.department}
               </span>
             </span>
             <svg className="ml-auto" width="12" height="12" viewBox="0 0 24 24" fill="none">

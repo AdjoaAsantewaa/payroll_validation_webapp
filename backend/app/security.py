@@ -69,6 +69,6 @@ def require_submitter(user: User = Depends(get_current_user)) -> User:
 
 
 def require_admin(user: User = Depends(get_current_user)) -> User:
-    if user.role.value != "specialist" or not user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin privileges required")
+    if user.role.value != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
     return user

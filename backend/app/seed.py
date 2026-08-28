@@ -1,5 +1,5 @@
 """Seeds realistic demo data for the Payroll Validation app: August 2026
-cycle, 12 corporate departments, K. Owusu (specialist), assorted submitters,
+cycle, 12 corporate departments, an admin account, K. Owusu (specialist), assorted submitters,
 and a set of representative exception scenarios (overtime anomaly, exited
 employee, duplicate rows, missing fields, unknown staff ID, wage-bill
 variance, new allowance) plus one department with an actual superseded
@@ -41,9 +41,14 @@ def seed(db: Session):
     specialist = User(
         email="k.owusu@company.com", name="K. Owusu", initials="KO",
         role=Role.specialist, password_hash=hash_password(DEMO_PASSWORD),
-        is_admin=True,
     )
     db.add(specialist)
+
+    admin = User(
+        email="admin@company.com", name="Admin", initials="AD",
+        role=Role.admin, password_hash=hash_password(DEMO_PASSWORD),
+    )
+    db.add(admin)
 
     submitters = [
         ("a.mensah@company.com", "A. Mensah", "AM", "Finance"),
