@@ -8,6 +8,20 @@ export interface AuthUser {
   email: string;
   department?: string | null;
   department_id?: number | null;
+  is_admin?: boolean;
+}
+
+export interface Department {
+  id: number;
+  name: string;
+}
+
+export interface Submitter {
+  id: number;
+  name: string;
+  email: string;
+  department?: string | null;
+  department_id?: number | null;
 }
 
 export interface DashboardData {

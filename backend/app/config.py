@@ -27,3 +27,13 @@ JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "480"))
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 AI_MODEL = os.getenv("AI_MODEL", "claude-sonnet-4-5")
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+
+# SMTP is optional: if unset, app.email logs the message to console instead of
+# sending, mirroring the ANTHROPIC_API_KEY mock-fallback convention above so
+# local dev works with zero mail setup.
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM = os.getenv("SMTP_FROM", "Payroll Validation <no-reply@company.com>")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")

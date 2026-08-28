@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import CORS_ORIGINS, IS_SQLITE
 from app.seed import create_tables, run_seed
-from app.routers import auth, dashboard, submissions, exceptions, queries, export
+from app.routers import auth, dashboard, submissions, exceptions, queries, export, admin
 
 app = FastAPI(title="Payroll Validation API", version="0.1.0")
 
@@ -38,3 +38,4 @@ app.include_router(submissions.router)
 app.include_router(exceptions.router)
 app.include_router(queries.router)
 app.include_router(export.router)
+app.include_router(admin.router)

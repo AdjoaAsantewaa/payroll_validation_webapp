@@ -6,6 +6,7 @@ import Dashboard from "./pages/specialist/Dashboard";
 import ExceptionsIndex from "./pages/specialist/ExceptionsIndex";
 import ExceptionReview from "./pages/specialist/ExceptionReview";
 import QueryExport from "./pages/specialist/QueryExport";
+import AdminCreateSubmitter from "./pages/specialist/AdminCreateSubmitter";
 import Upload from "./pages/submitter/Upload";
 import Status from "./pages/submitter/Status";
 import AnswerQuery from "./pages/submitter/AnswerQuery";
@@ -53,6 +54,15 @@ export default function App() {
             element={
               <ProtectedRoute role="specialist">
                 <QueryExport />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/submitters"
+            element={
+              <ProtectedRoute role="specialist" requireAdmin>
+                <AdminCreateSubmitter />
               </ProtectedRoute>
             }
           />

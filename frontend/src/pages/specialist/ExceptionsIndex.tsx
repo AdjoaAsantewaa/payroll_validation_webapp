@@ -3,11 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { Shell } from "../../components/Shell";
 import { StatusBadge } from "../../components/StatusBadge";
 import { api } from "../../api/client";
+import { useAuth } from "../../context/AuthContext";
 import type { DashboardData } from "../../types";
 
 export default function ExceptionsIndex() {
   const [data, setData] = useState<DashboardData | null>(null);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   useEffect(() => {
     api.get<DashboardData>("/dashboard").then(setData);
@@ -15,7 +17,7 @@ export default function ExceptionsIndex() {
 
   if (!data) {
     return (
-      <Shell title="Exceptions" navItems={navItems(0)}>
+      <Shell title="Exceptions" navItems={navItems(0, user?.is_admin)}>
         <div className="text-sm text-[#8a8a8a]">Loading…</div>
       </Shell>
     );
@@ -24,7 +26,7 @@ export default function ExceptionsIndex() {
   const withExceptions = data.departments.filter((d) => d.rows > 0);
 
   return (
-    <Shell title="Exceptions" cycleLabel={data.cycle.label} navItems={navItems(data.pipeline.resolve)}>
+    <Shell title="Exceptions" cycleLabel={data.cycle.label} navItems={navItems(data.pipeline.resolve, user?.is_admin)}>
       <h1 className="mb-1 text-[20px] font-bold tracking-tight">Exceptions by department</h1>
       <p className="mb-5 text-[13px] text-[#8a8a8a]">Pick a department to review its flagged rows.</p>
 
@@ -71,10 +73,12 @@ export default function ExceptionsIndex() {
   );
 }
 
-function navItems(count: number) {
-  return [
+function navItems(count: number, isAdmin?: boolean) {
+  const items = [
     { label: "Dashboard", to: "/dashboard" },
     { label: "Exceptions", to: "/exceptions", badge: count },
     { label: "Query & export", to: "/query-export" },
   ];
+  if (isAdmin) items.push({ label: "Admin", to: "/admin/submitters" });
+  return items;
 }

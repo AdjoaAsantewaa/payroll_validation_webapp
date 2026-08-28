@@ -41,6 +41,7 @@ def seed(db: Session):
     specialist = User(
         email="k.owusu@company.com", name="K. Owusu", initials="KO",
         role=Role.specialist, password_hash=hash_password(DEMO_PASSWORD),
+        is_admin=True,
     )
     db.add(specialist)
 

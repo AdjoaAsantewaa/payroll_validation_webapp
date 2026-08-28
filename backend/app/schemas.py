@@ -16,6 +16,7 @@ class LoginResponse(BaseModel):
     email: str
     department: Optional[str] = None
     department_id: Optional[int] = None
+    is_admin: bool = False
 
 
 class ExceptionDecisionRequest(BaseModel):
@@ -42,3 +43,22 @@ class QueryAnswerRequest(BaseModel):
 class ExportRequest(BaseModel):
     submission_ids: List[int]
     file_format: str = "csv"
+
+
+class DepartmentOut(BaseModel):
+    id: int
+    name: str
+
+
+class CreateSubmitterRequest(BaseModel):
+    name: str
+    email: str
+    department_id: int
+
+
+class SubmitterOut(BaseModel):
+    id: int
+    name: str
+    email: str
+    department: Optional[str] = None
+    department_id: Optional[int] = None
