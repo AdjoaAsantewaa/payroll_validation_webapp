@@ -61,3 +61,11 @@ class SubmitterOut(BaseModel):
     email: str
     department: Optional[str] = None
     department_id: Optional[int] = None
+
+
+class CreateSubmitterResponse(SubmitterOut):
+    # Only ever populated on the create response, straight after generation --
+    # never stored anywhere but the password_hash column, never returned by
+    # GET /admin/submitters. Shown once because it can't be retrieved again.
+    temporary_password: str
+    email_sent: bool

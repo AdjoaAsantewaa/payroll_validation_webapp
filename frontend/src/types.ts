@@ -29,6 +29,14 @@ export interface Submitter {
   department_id?: number | null;
 }
 
+/** Only ever present on the create-submitter response, once, right after
+ * creation — never returned by GET /admin/submitters and never stored
+ * client-side beyond this session's in-memory state. */
+export interface CreateSubmitterResult extends Submitter {
+  temporary_password: string;
+  email_sent: boolean;
+}
+
 export interface DashboardData {
   cycle: { id: number; label: string; cutoff_date: string };
   pipeline: {

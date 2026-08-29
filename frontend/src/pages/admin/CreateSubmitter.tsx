@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Shell } from "../../components/Shell";
 import { api, ApiError } from "../../api/client";
-import type { Department, Submitter } from "../../types";
+import type { Department, Submitter, CreateSubmitterResult } from "../../types";
 
 export default function CreateSubmitter() {
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -10,7 +10,8 @@ export default function CreateSubmitter() {
   const [email, setEmail] = useState("");
   const [departmentId, setDepartmentId] = useState<number | "">("");
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [credentials, setCredentials] = useState<CreateSubmitterResult | null>(null);
+  const [copied, setCopied] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   async function load() {
@@ -29,19 +30,22 @@ export default function CreateSubmitter() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setSuccess(null);
+    // A fresh attempt retires the previous one-time credentials immediately
+    // — they're shown once, not kept around while a new submitter is created.
+    setCredentials(null);
+    setCopied(false);
     if (departmentId === "") {
       setError("Choose a department.");
       return;
     }
     setSubmitting(true);
     try {
-      await api.post<Submitter>("/admin/submitters", {
+      const res = await api.post<CreateSubmitterResult>("/admin/submitters", {
         name: name.trim(),
         email: email.trim(),
         department_id: departmentId,
       });
-      setSuccess(`Credentials sent to ${email.trim()}.`);
+      setCredentials(res);
       setName("");
       setEmail("");
       setDepartmentId("");
@@ -53,15 +57,60 @@ export default function CreateSubmitter() {
     }
   }
 
+  async function copyCredentials() {
+    if (!credentials) return;
+    const text = `Email: ${credentials.email}\nTemporary password: ${credentials.temporary_password}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API can be unavailable (e.g. non-HTTPS context); the
+      // credentials are still visible on screen to copy by hand.
+    }
+  }
+
   return (
     <Shell title="Create submitter" navItems={navItems()}>
       <div className="mb-6">
         <h1 className="text-[22px] font-bold tracking-tight">Create submitter</h1>
         <p className="mt-1 text-[13px] text-[#8a8a8a]">
-          Add a submitter's name, email, and department — a password is generated and the
-          login details are emailed to them automatically.
+          Add a submitter's name, email, and department. A temporary password is generated and
+          shown once below — copy it to share with them. Email delivery is best-effort and
+          optional; account creation and login don't depend on it.
         </p>
       </div>
+
+      {credentials && (
+        <div className="mb-6 rounded-lg border border-[#f6dfae] bg-[#fdf7ec] px-5 py-4">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-[13px] font-semibold text-[#8a6416]">
+              Submitter created — shown once
+            </div>
+            <div className="text-[11px] text-[#8a6416]">
+              {credentials.email_sent
+                ? "Also emailed to the submitter."
+                : "Not emailed — copy and share this manually."}
+            </div>
+          </div>
+          <p className="mb-3 text-[12px] text-[#8a6416]">
+            This password cannot be shown again after you leave this page. Copy it now.
+          </p>
+          <div className="mb-3 flex flex-col gap-1.5 rounded-md border border-[#f0dca0] bg-white px-3 py-2.5 font-mono text-[12.5px]">
+            <div>
+              <span className="text-[#8a8a8a]">Email: </span>
+              <span className="font-semibold text-[#111]">{credentials.email}</span>
+            </div>
+            <div>
+              <span className="text-[#8a8a8a]">Temporary password: </span>
+              <span className="font-semibold text-[#111]">{credentials.temporary_password}</span>
+            </div>
+          </div>
+          <button onClick={copyCredentials} className="btn btn-dark px-3 py-1.5 text-[11px]">
+            {copied ? "Copied ✓" : "Copy credentials"}
+          </button>
+        </div>
+      )}
 
       <div className="mb-6 grid grid-cols-[380px_1fr] gap-6">
         <form onSubmit={handleSubmit} className="card flex flex-col gap-4 px-5 py-5">
@@ -112,14 +161,9 @@ export default function CreateSubmitter() {
               {error}
             </div>
           )}
-          {success && (
-            <div className="rounded-md bg-[#eafaf0] px-3 py-2 text-[12px] text-[#1e7e42]">
-              {success}
-            </div>
-          )}
 
           <button type="submit" className="btn btn-dark w-full py-2.5" disabled={submitting}>
-            {submitting ? "Creating…" : "Create & send credentials"}
+            {submitting ? "Creating…" : "Create submitter"}
           </button>
         </form>
 
