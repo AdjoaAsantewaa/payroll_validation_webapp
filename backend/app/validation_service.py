@@ -7,6 +7,7 @@ from app.models import (
     ExceptionSource, ExceptionStatus, Employee, EmployeeStatus,
 )
 from app import rules_engine, ai_service
+from app.issue_presentation import present_issue
 
 
 def _severity(s: str) -> ExceptionSeverity:
@@ -135,6 +136,7 @@ def validate_and_persist(db: Session, submission: Submission, rows: list[dict],
     db.flush()
     exceptions = db.query(ExceptionModel).filter(
         ExceptionModel.submission_id == submission.id).all()
+    rows_by_id = {r.id: r for r in row_objs.values()}
 
     submission.row_count = len(rows)
     submission.status = submission.status.__class__.needs_review
@@ -145,11 +147,26 @@ def validate_and_persist(db: Session, submission: Submission, rows: list[dict],
     return {
         "submission_id": submission.id,
         "row_count": len(rows),
-        "exceptions": [_exc_to_dict(e) for e in exceptions],
+        "exceptions": [_exc_to_dict(e, rows_by_id.get(e.row_id)) for e in exceptions],
     }
 
 
-def _exc_to_dict(e: ExceptionModel) -> dict:
+def _exc_to_dict(e: ExceptionModel, row: SubmissionRow | None = None) -> dict:
+    """`row` is optional context (staff_id/full_name) used only to write a
+    richer user-facing Problem statement -- e.g. naming the employee for an
+    exited-employee issue. Callers that already have the row handy (or can
+    bulk-fetch it cheaply) should pass it; omitting it still works, just
+    with a slightly plainer problem statement. `source`/`field` stay in this
+    dict for internal/debugging use (audit views, this app's own tests) --
+    normal application screens simply don't render them; see
+    issue_presentation.py.
+    """
+    presentation = present_issue(
+        field=e.field, source=e.source.value, issue_text=e.issue_text,
+        submitted_value=e.submitted_value, usual_value=e.usual_value,
+        ai_explanation=e.ai_explanation, existing_recommended_action=e.recommended_action,
+        staff_id=row.staff_id if row else None, full_name=row.full_name if row else None,
+    )
     return {
         "id": e.id,
         "row_label": e.row_label,
@@ -160,7 +177,9 @@ def _exc_to_dict(e: ExceptionModel) -> dict:
         "submitted_value": e.submitted_value,
         "usual_value": e.usual_value,
         "ai_explanation": e.ai_explanation,
-        "recommended_action": e.recommended_action,
+        "recommended_action": presentation["recommended_action"],
         "status": e.status.value,
         "note": e.note,
+        "issue_type": presentation["issue_type"],
+        "problem": presentation["problem"],
     }

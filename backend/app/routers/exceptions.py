@@ -26,6 +26,16 @@ def list_exceptions(submission_id: int = None, db: Session = Depends(get_db),
     sev_rank = {"high": 0, "med": 1, "low": 2}
     exceptions = sorted(exceptions, key=lambda e: sev_rank.get(e.severity.value, 9))
 
+    # One bulk fetch for every row these exceptions reference, so each
+    # exception's user-facing Problem text can name the employee -- avoids
+    # an N+1 query per exception.
+    row_ids = [e.row_id for e in exceptions if e.row_id]
+    rows_by_id = {}
+    if row_ids:
+        rows_by_id = {
+            r.id: r for r in db.query(SubmissionRow).filter(SubmissionRow.id.in_(row_ids)).all()
+        }
+
     submission = None
     if submission_id:
         submission = db.query(Submission).filter(Submission.id == submission_id).first()
@@ -37,7 +47,7 @@ def list_exceptions(submission_id: int = None, db: Session = Depends(get_db),
             "row_count": submission.row_count, "status": submission.status.value,
             "last_activity": submission.last_activity,
         } if submission else None,
-        "exceptions": [_exc_to_dict(e) for e in exceptions],
+        "exceptions": [_exc_to_dict(e, rows_by_id.get(e.row_id)) for e in exceptions],
         "counts": {
             "all": len(exceptions),
             "high": len([e for e in exceptions if e.severity.value == "high"]),
@@ -53,14 +63,13 @@ def get_exception(exception_id: int, db: Session = Depends(get_db),
     e = db.query(ExceptionModel).filter(ExceptionModel.id == exception_id).first()
     if not e:
         raise HTTPException(status_code=404, detail="Exception not found")
+    r = db.query(SubmissionRow).filter(SubmissionRow.id == e.row_id).first() if e.row_id else None
     row = None
-    if e.row_id:
-        r = db.query(SubmissionRow).filter(SubmissionRow.id == e.row_id).first()
-        if r:
-            row = {"staff_id": r.staff_id, "full_name": r.full_name,
-                   "overtime_hours": r.overtime_hours, "basic_pay": r.basic_pay,
-                   "allowances": r.allowances}
-    data = _exc_to_dict(e)
+    if r:
+        row = {"staff_id": r.staff_id, "full_name": r.full_name,
+               "overtime_hours": r.overtime_hours, "basic_pay": r.basic_pay,
+               "allowances": r.allowances}
+    data = _exc_to_dict(e, r)
     data["row"] = row
     return data
 

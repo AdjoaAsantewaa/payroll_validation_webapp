@@ -221,7 +221,7 @@ def seed(db: Session):
             ExceptionSeverity.high, ExceptionSource.ai,
             "Overtime entry — 96h vs own average 24h",
             submitted_value="96.0", usual_value="24.3 avg (6 periods)",
-            ai_explanation=("Overtime of 96h is within the permitted ceiling, so no rule fired — "
+            ai_explanation=("Overtime of 96h is within the permitted range, "
                              "but it is about four times this employee's own average and the "
                              "highest in Operations this cycle. Likely a monthly total entered "
                              "where weekly hours were expected."),

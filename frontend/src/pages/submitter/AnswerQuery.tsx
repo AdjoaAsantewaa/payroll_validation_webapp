@@ -62,28 +62,30 @@ export default function AnswerQuery() {
           <p className="mb-4 text-[13px] leading-relaxed text-[#333]">{question.issue_text}</p>
 
           {(question.submitted_value || question.usual_value) && (
-            <table className="table-clean mb-4">
-              <thead>
-                <tr>
-                  <th>Field</th>
-                  <th>You sent</th>
-                  <th>Usual</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>{question.field}</td>
-                  <td className="font-semibold">{question.submitted_value ?? "—"}</td>
-                  <td className="text-[#8a8a8a]">{question.usual_value ?? "—"}</td>
-                </tr>
-              </tbody>
-            </table>
+            <div className="mb-4 overflow-x-auto">
+              <table className="table-clean">
+                <thead>
+                  <tr>
+                    <th>Field</th>
+                    <th>You sent</th>
+                    <th>Usual</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>{question.field}</td>
+                    <td className="font-semibold">{question.submitted_value ?? "—"}</td>
+                    <td className="text-[#8a8a8a]">{question.usual_value ?? "—"}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           )}
 
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#8a8a8a]">
             Your answer
           </div>
-          <div className="mb-3 flex gap-2">
+          <div className="mb-3 flex flex-wrap gap-2">
             {(
               [
                 { key: "correct", label: "The value is correct" },
@@ -117,7 +119,7 @@ export default function AnswerQuery() {
             <div className="mb-3 rounded-md bg-[#fdecec] px-3 py-2 text-[12px] text-[#b91c1c]">{error}</div>
           )}
 
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <button
               className="btn btn-outline flex-1"
               onClick={() => navigate("/submitter/upload")}

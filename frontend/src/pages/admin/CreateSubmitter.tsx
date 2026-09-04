@@ -112,7 +112,7 @@ export default function CreateSubmitter() {
         </div>
       )}
 
-      <div className="mb-6 grid grid-cols-[380px_1fr] gap-6">
+      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-[380px_1fr]">
         <form onSubmit={handleSubmit} className="card flex flex-col gap-4 px-5 py-5">
           <div>
             <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[#8a8a8a]">
@@ -168,31 +168,33 @@ export default function CreateSubmitter() {
         </form>
 
         <div className="card overflow-hidden">
-          <table className="table-clean">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Department</th>
-              </tr>
-            </thead>
-            <tbody>
-              {submitters.map((s) => (
-                <tr key={s.id}>
-                  <td className="font-medium">{s.name}</td>
-                  <td className="text-[#8a8a8a]">{s.email}</td>
-                  <td>{s.department || "—"}</td>
-                </tr>
-              ))}
-              {submitters.length === 0 && (
+          <div className="overflow-x-auto">
+            <table className="table-clean">
+              <thead>
                 <tr>
-                  <td colSpan={3} className="text-[#8a8a8a]">
-                    No submitters created yet.
-                  </td>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Department</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {submitters.map((s) => (
+                  <tr key={s.id}>
+                    <td className="font-medium">{s.name}</td>
+                    <td className="text-[#8a8a8a]">{s.email}</td>
+                    <td>{s.department || "—"}</td>
+                  </tr>
+                ))}
+                {submitters.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="text-[#8a8a8a]">
+                      No submitters created yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </Shell>

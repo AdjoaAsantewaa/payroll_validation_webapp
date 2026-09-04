@@ -45,6 +45,50 @@ def export_preview(db: Session = Depends(get_db), user: User = Depends(require_s
     }
 
 
+FRIENDLY_COLUMN_NAMES = {
+    "department": "Department",
+    "staff_id": "Staff ID",
+    "full_name": "Full Name",
+    "overtime_hours": "Overtime Hours",
+    "basic_pay": "Basic Pay",
+    "allowances": "Allowances",
+}
+
+
+def _write_formatted_excel(df: pd.DataFrame) -> io.BytesIO:
+    """Excel-only formatting: friendly column headers, bold header row, and
+    sensible column widths. The underlying cell values are untouched -- this
+    only renames columns for display and adjusts presentation, exactly the
+    same numbers/strings that go into the CSV export."""
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    display_df = df.rename(columns=FRIENDLY_COLUMN_NAMES)
+
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+        display_df.to_excel(writer, index=False, sheet_name="Payroll export")
+        ws = writer.sheets["Payroll export"]
+
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="111111", end_color="111111", fill_type="solid")
+        for cell in ws[1]:
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="left", vertical="center")
+
+        for col_idx, column in enumerate(display_df.columns, start=1):
+            longest = max(
+                [len(str(column))] + [len(str(v)) for v in display_df.iloc[:, col_idx - 1]]
+            ) if len(display_df) else len(str(column))
+            ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = min(
+                max(longest + 2, 12), 40
+            )
+        ws.freeze_panes = "A2"
+
+    buf.seek(0)
+    return buf
+
+
 def _open_exc_count(db: Session, submission_id: int) -> int:
     from app.models import Exception as ExceptionModel, ExceptionStatus
     return db.query(ExceptionModel).filter(
@@ -83,9 +127,7 @@ def export_clean_data(payload: dict = Body(...), db: Session = Depends(get_db),
 
     df = pd.DataFrame(records)
     if file_format == "excel":
-        buf = io.BytesIO()
-        df.to_excel(buf, index=False)
-        buf.seek(0)
+        buf = _write_formatted_excel(df)
         content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         ext = "xlsx"
     else:

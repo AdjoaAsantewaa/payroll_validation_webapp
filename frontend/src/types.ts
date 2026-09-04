@@ -75,6 +75,8 @@ export interface ExceptionItem {
   row_label: string;
   field: string | null;
   severity: "high" | "med" | "low";
+  /** Internal only -- kept for debugging/audit, never rendered. Use
+   * issue_type for anything shown to a user. */
   source: "rule" | "ai";
   issue_text: string;
   submitted_value: string | null;
@@ -83,6 +85,10 @@ export interface ExceptionItem {
   recommended_action: string | null;
   status: "open" | "accepted" | "rejected" | "query_open" | "query_answered";
   note: string | null;
+  /** Plain-language category, e.g. "Exited employee", "Unusual overtime". */
+  issue_type: string;
+  /** What's wrong, in plain language -- pair with recommended_action. */
+  problem: string;
   row?: {
     staff_id: string | null;
     full_name: string | null;

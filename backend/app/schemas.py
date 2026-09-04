@@ -69,3 +69,10 @@ class CreateSubmitterResponse(SubmitterOut):
     # GET /admin/submitters. Shown once because it can't be retrieved again.
     temporary_password: str
     email_sent: bool
+
+
+class AssistantChatRequest(BaseModel):
+    message: str
+    page: Optional[str] = ""
+    submission_id: Optional[int] = None
+    exception_id: Optional[int] = None

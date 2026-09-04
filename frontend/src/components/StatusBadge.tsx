@@ -25,10 +25,10 @@ export function SeverityBadge({ severity }: { severity: string }) {
   return <span className={`badge ${SEVERITY_MAP[severity] || "badge-grey"}`}>{severity}</span>;
 }
 
-export function SourceBadge({ source }: { source: string }) {
-  return (
-    <span className={`badge ${source === "ai" ? "badge-blue" : "badge-grey"}`}>
-      {source === "ai" ? "AI" : "Rule"}
-    </span>
-  );
+/** Plain-language issue category shown to users -- e.g. "Exited employee",
+ * "Unusual overtime". Deliberately does not reveal whether the issue came
+ * from deterministic validation or contextual judgement; see
+ * backend/app/issue_presentation.py. */
+export function IssueTypeBadge({ issueType }: { issueType: string }) {
+  return <span className="badge badge-grey">{issueType}</span>;
 }

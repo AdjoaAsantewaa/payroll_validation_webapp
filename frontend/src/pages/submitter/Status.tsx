@@ -54,7 +54,7 @@ export default function Status() {
       <h1 className="mb-1 text-[20px] font-bold tracking-tight">{data.cycle.label}</h1>
       <p className="mb-5 text-[13px] text-[#8a8a8a]">{data.department}</p>
 
-      <div className="grid grid-cols-[1fr_320px] gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
         <div className="card p-5">
           {!hasUpload ? (
             <div className="py-8 text-center text-[13px] text-[#8a8a8a]">
@@ -70,7 +70,7 @@ export default function Status() {
               <TimelineStep label="Uploaded" detail={formatTime(submission.uploaded_at)} />
               <TimelineStep
                 label="Checked"
-                detail={`${submission.row_count} rows`}
+                detail={`${submission.row_count} row${submission.row_count === 1 ? "" : "s"}`}
               />
               {submission.self_fixed_count > 0 && (
                 <TimelineStep label="You fixed" detail={`${submission.self_fixed_count}`} />
@@ -126,27 +126,71 @@ export default function Status() {
             Earlier uploads this cycle
           </div>
           <div className="card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="table-clean">
+                <thead>
+                  <tr>
+                    <th>Version</th>
+                    <th>Rows</th>
+                    <th>Uploaded</th>
+                    <th>Superseded</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.previous_versions.map((v) => (
+                    <tr key={v.submission_id}>
+                      <td>v{v.version}</td>
+                      <td>{v.rows}</td>
+                      <td className="text-[#8a8a8a]">{formatTime(v.uploaded_at)}</td>
+                      <td className="text-[#8a8a8a]">{formatTime(v.superseded_at)}</td>
+                      <td className="text-right text-[#1d4ed8]">
+                        <button
+                          className="hover:underline"
+                          onClick={() => setViewingSubmission(v.submission_id)}
+                        >
+                          View submission
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-6">
+        <div className="mb-2 text-[12px] font-semibold text-[#333]">Earlier cycles</div>
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
             <table className="table-clean">
               <thead>
                 <tr>
-                  <th>Version</th>
+                  <th>Cycle</th>
                   <th>Rows</th>
-                  <th>Uploaded</th>
-                  <th>Superseded</th>
+                  <th>Outcome</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {data.previous_versions.map((v) => (
-                  <tr key={v.submission_id}>
-                    <td>v{v.version}</td>
-                    <td>{v.rows}</td>
-                    <td className="text-[#8a8a8a]">{formatTime(v.uploaded_at)}</td>
-                    <td className="text-[#8a8a8a]">{formatTime(v.superseded_at)}</td>
+                {data.earlier_cycles.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="py-4 text-center text-[#999]">
+                      No earlier cycles yet.
+                    </td>
+                  </tr>
+                )}
+                {data.earlier_cycles.map((c) => (
+                  <tr key={c.submission_id}>
+                    <td>{c.cycle}</td>
+                    <td>{c.rows}</td>
+                    <td className="text-[#8a8a8a]">{c.outcome}</td>
                     <td className="text-right text-[#1d4ed8]">
                       <button
                         className="hover:underline"
-                        onClick={() => setViewingSubmission(v.submission_id)}
+                        onClick={() => setViewingSubmission(c.submission_id)}
                       >
                         View submission
                       </button>
@@ -156,46 +200,6 @@ export default function Status() {
               </tbody>
             </table>
           </div>
-        </div>
-      )}
-
-      <div className="mt-6">
-        <div className="mb-2 text-[12px] font-semibold text-[#333]">Earlier cycles</div>
-        <div className="card overflow-hidden">
-          <table className="table-clean">
-            <thead>
-              <tr>
-                <th>Cycle</th>
-                <th>Rows</th>
-                <th>Outcome</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.earlier_cycles.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="py-4 text-center text-[#999]">
-                    No earlier cycles yet.
-                  </td>
-                </tr>
-              )}
-              {data.earlier_cycles.map((c) => (
-                <tr key={c.submission_id}>
-                  <td>{c.cycle}</td>
-                  <td>{c.rows}</td>
-                  <td className="text-[#8a8a8a]">{c.outcome}</td>
-                  <td className="text-right text-[#1d4ed8]">
-                    <button
-                      className="hover:underline"
-                      onClick={() => setViewingSubmission(c.submission_id)}
-                    >
-                      View submission
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </div>
 

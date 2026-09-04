@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import (
     Department, Cycle, Submission, Exception as ExceptionModel, ExceptionStatus,
-    CorrectionQuery, QueryStatus, SubmissionStatus, User,
+    CorrectionQuery, QueryStatus, SubmissionStatus, User, Role,
 )
 from app.security import require_specialist
 from app.audit import log_action
@@ -45,15 +45,43 @@ def draft_query(payload: dict = Body(...), db: Session = Depends(get_db),
         raise HTTPException(status_code=400, detail="No open exceptions to query")
 
     exc_dicts = [_exc_to_dict(e) for e in exceptions]
-    draft = ai_service.draft_correction(dept.name, cycle.label, exc_dicts, cycle.cutoff_date)
+    # Only pass a cut-off date through if it's genuinely still ahead of us --
+    # a past date would produce a draft that tells the department to reply
+    # by a deadline that's already gone. cycle.cutoff_date is stored as
+    # "YYYY-MM-DD"; a malformed value is treated as "no usable deadline"
+    # rather than erroring the draft.
+    future_cutoff = None
+    try:
+        if cycle.cutoff_date and datetime.datetime.strptime(cycle.cutoff_date, "%Y-%m-%d").date() >= datetime.date.today():
+            future_cutoff = cycle.cutoff_date
+    except ValueError:
+        pass
+    draft = ai_service.draft_correction(dept.name, cycle.label, exc_dicts, future_cutoff or "")
 
     return {
-        "to_emails": dept.contact_email or f"{dept.name.lower()}.payroll@company.com",
+        "to_emails": _department_recipient(db, department_id, dept),
         "subject": draft["subject"],
         "body": draft["body"],
         "exception_ids": [e.id for e in exceptions],
-        "source": draft.get("source", "mock"),
     }
+
+
+def _department_recipient(db: Session, department_id: int, dept: Department) -> str:
+    """The correction query recipient is the department's actual Submitter
+    account(s) -- never a made-up address. Falls back to the department's
+    configured contact_email only if no submitter account exists yet for
+    that department; if neither is available, returns an empty string so
+    the specialist has to fill it in themselves rather than being handed a
+    guessed address."""
+    submitters = (
+        db.query(User)
+        .filter(User.role == Role.submitter, User.department_id == department_id)
+        .order_by(User.name)
+        .all()
+    )
+    if submitters:
+        return ", ".join(u.email for u in submitters)
+    return dept.contact_email or ""
 
 
 @router.post("/queries/send")

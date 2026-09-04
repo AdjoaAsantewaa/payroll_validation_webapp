@@ -209,7 +209,7 @@ def _mock_explain_anomaly(candidate: dict, row: dict, employee, department_name:
         usual = candidate["usual_value"]
         severity = "high" if ratio >= 3 else "med"
         explanation = (
-            f"Overtime of {submitted:g}h is within the permitted ceiling, so no rule fired — "
+            f"Overtime of {submitted:g}h is within the permitted range, "
             f"but it is about {ratio:g} times this employee's own average and the highest in "
             f"{department_name} this cycle. Likely a monthly total entered where weekly hours "
             f"were expected."
@@ -256,13 +256,20 @@ def _mock_explain_anomaly(candidate: dict, row: dict, employee, department_name:
 def draft_correction(department_name: str, cycle_label: str, exceptions: list[dict],
                       cutoff_date: str = "") -> dict:
     if _client:
+        deadline_instruction = (
+            f'Mention that replies are needed by {cutoff_date} to stay in this cycle.'
+            if cutoff_date else
+            "Do not state or imply any specific deadline or date -- none is available. "
+            "If you need a closing line about timing, ask them to respond as soon as possible "
+            "without naming a date."
+        )
         prompt = (
             f"Draft a short, professional correction-request email to the {department_name} "
             f"department about their {cycle_label} payroll submission.\n"
             f"Exceptions to raise: {json.dumps(exceptions, default=str)}\n"
             "List each item numbered, referencing row numbers and a one-line description asking "
-            "them to confirm or correct it. Keep it concise and polite. Return ONLY JSON: "
-            '{"subject": "...", "body": "..."}'
+            f"them to confirm or correct it. {deadline_instruction} Keep it concise and polite. "
+            'Return ONLY JSON: {"subject": "...", "body": "..."}'
         )
         raw = _call_claude(
             "You draft correction-request emails for a payroll team. A human reviews and edits before sending. Respond with strict JSON only.",
@@ -286,13 +293,21 @@ def _mock_draft_correction(department_name: str, cycle_label: str, exceptions: l
     for i, exc in enumerate(exceptions, start=1):
         lines.append(f"{i}. {exc.get('row_label', 'Row')} — {exc.get('issue_text', '')}. "
                       f"Please confirm or correct.")
+    # cutoff_date is only ever passed in when it's genuinely still ahead of
+    # today (see queries.py) -- with no usable deadline, fall back to
+    # neutral wording rather than stating a date, and never fabricate one.
+    deadline_line = (
+        f"Replies by {cutoff_date} keep you in this cycle."
+        if cutoff_date else
+        "Please review these items and submit the required corrections as soon as possible."
+    )
     body = (
         f"Hello,\n\n"
         f"Before the {cycle_label} cycle is approved, {len(exceptions)} item"
         f"{'s' if len(exceptions) != 1 else ''} in the {department_name} submission need"
         f"{'s' if len(exceptions) == 1 else ''} confirmation:\n\n"
         + "\n".join(lines) +
-        (f"\n\nReplies by {cutoff_date} keep you in this cycle.\n\n" if cutoff_date else "\n\n")
+        f"\n\n{deadline_line}\n\n"
         + "— Payroll"
     )
     subject = f"{cycle_label} payroll — {len(exceptions)} item{'s' if len(exceptions) != 1 else ''} to confirm before approval"

@@ -63,11 +63,13 @@ def validate_rows(rows: list[dict], employees_by_staff_id: dict[str, "Employee"]
         if employee is None:
             exceptions.append(_exc(
                 row, row_label, "staff_id", "high",
-                f"Staff ID {staff_id} is not on the employee record"))
+                f"Staff ID {staff_id} is not on the employee record",
+                submitted_value=staff_id))
         elif employee.status.value == "exited":
             exceptions.append(_exc(
                 row, row_label, "staff_id", "high",
                 f"Exited employee — Staff ID {staff_id} belongs to an exited employee",
+                submitted_value=staff_id,
                 usual_value=f"exited {employee.exited_date or ''}".strip()))
 
         seen_staff_ids.setdefault(staff_id, []).append(row_index)
@@ -80,7 +82,8 @@ def validate_rows(rows: list[dict], employees_by_staff_id: dict[str, "Employee"]
             anchor_row = next(r for r in rows if r["row_index"] == indices[0])
             exceptions.append(_exc(
                 anchor_row, f"Rows {labels}", "duplicate", "high",
-                f"Same entry appears twice — duplicate of row(s) {labels}"))
+                f"Same entry appears twice — duplicate of row(s) {labels}",
+                submitted_value=staff_id))
 
     return exceptions
 

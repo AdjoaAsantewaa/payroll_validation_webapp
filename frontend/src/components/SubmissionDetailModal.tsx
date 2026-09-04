@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
-import { StatusBadge, SeverityBadge, SourceBadge } from "./StatusBadge";
+import { StatusBadge, SeverityBadge, IssueTypeBadge } from "./StatusBadge";
 import type { SubmissionDetail } from "../types";
 
 export function SubmissionDetailModal({
@@ -33,7 +33,7 @@ export function SubmissionDetailModal({
       onClick={onClose}
     >
       <div
-        className="max-h-[85vh] w-full max-w-[640px] overflow-y-auto rounded-xl bg-white p-6 shadow-2xl"
+        className="max-h-[85vh] w-full max-w-[640px] overflow-y-auto rounded-xl bg-white p-4 shadow-2xl sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         {error && <div className="text-[13px] text-[#b91c1c]">{error}</div>}
@@ -42,8 +42,8 @@ export function SubmissionDetailModal({
 
         {data && (
           <>
-            <div className="mb-4 flex items-start justify-between">
-              <div>
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="min-w-0">
                 <h2 className="text-[16px] font-bold">
                   {data.department} · {data.cycle}
                 </h2>
@@ -52,7 +52,7 @@ export function SubmissionDetailModal({
                   {!data.is_current && " · superseded"} · {data.row_count} rows
                 </p>
               </div>
-              <button onClick={onClose} className="text-[#8a8a8a] hover:text-[#111]">
+              <button onClick={onClose} className="shrink-0 text-[#8a8a8a] hover:text-[#111]">
                 ✕
               </button>
             </div>
@@ -111,18 +111,18 @@ export function SubmissionDetailModal({
               Validation results ({data.exceptions.length})
             </div>
             {data.exceptions.length === 0 ? (
-              <div className="mb-4 text-[12px] text-[#8a8a8a]">No exceptions — clean submission.</div>
+              <div className="mb-4 text-[12px] text-[#8a8a8a]">No issues — clean submission.</div>
             ) : (
               <div className="mb-4 flex flex-col gap-1.5">
                 {data.exceptions.map((e) => (
                   <div key={e.id} className="rounded-md border border-[#eee] px-2.5 py-2 text-[12px]">
-                    <div className="mb-1 flex items-center gap-1.5">
+                    <div className="mb-1 flex flex-wrap items-center gap-1.5">
                       <SeverityBadge severity={e.severity} />
-                      <SourceBadge source={e.source} />
+                      <IssueTypeBadge issueType={e.issue_type} />
                       <span className="font-semibold">{e.row_label}</span>
                       <StatusBadge status={e.status} />
                     </div>
-                    <div className="text-[#555]">{e.issue_text}</div>
+                    <div className="text-[#555]">{e.problem}</div>
                   </div>
                 ))}
               </div>

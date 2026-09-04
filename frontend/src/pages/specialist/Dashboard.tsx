@@ -59,7 +59,7 @@ export default function Dashboard() {
       cycleLabel={data.cycle.label}
       navItems={navItems(data.pipeline.resolve)}
     >
-      <div className="mb-6 flex items-start justify-between">
+      <div className="mb-6 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-[22px] font-bold tracking-tight">{data.cycle.label} cycle</h1>
           <p className="mt-1 text-[13px] text-[#8a8a8a]">
@@ -67,7 +67,7 @@ export default function Dashboard() {
             departments · every department at a glance
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-2">
           <button className="btn btn-outline">Payroll schema</button>
           <button className="btn btn-dark" onClick={() => navigate("/query-export")}>
             Export clean data
@@ -75,7 +75,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="mb-6 grid grid-cols-6 gap-3">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {pipeline.map((p) => (
           <div
             key={p.label}
@@ -93,7 +93,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <div className="mb-6 grid grid-cols-4 gap-3">
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="card border-[#f0b4ac] bg-[#fdf3f2] px-4 py-3.5">
           <div className="text-[10px] font-semibold uppercase tracking-wide text-[#b91c1c]">
             Needs you
@@ -149,50 +149,52 @@ export default function Dashboard() {
       </div>
 
       <div className="card overflow-hidden">
-        <table className="table-clean">
-          <thead>
-            <tr>
-              <th>Department</th>
-              <th>Status</th>
-              <th>Rows</th>
-              <th>Exceptions</th>
-              <th>Last activity</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.departments.map((dep) => {
-              const action = actionFor(dep);
-              return (
-                <tr key={dep.submission_id}>
-                  <td className="font-medium">{dep.department}</td>
-                  <td>
-                    <StatusBadge status={dep.status} />
-                  </td>
-                  <td>{dep.rows || "—"}</td>
-                  <td>
-                    {dep.exceptions > 0 ? (
-                      <span>
-                        <span className="font-semibold text-[#b91c1c]">{dep.exceptions}</span>
-                        {dep.exceptions_high > 0 && (
-                          <span className="text-[#8a8a8a]"> · {dep.exceptions_high} high</span>
-                        )}
-                      </span>
-                    ) : (
-                      <span className="text-[#8a8a8a]">0</span>
-                    )}
-                  </td>
-                  <td className="text-[#8a8a8a]">{dep.last_activity || "—"}</td>
-                  <td className="text-right">
-                    <button onClick={action.onClick} className="btn btn-ghost px-2 py-1 text-[12px]">
-                      {action.label}
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="table-clean">
+            <thead>
+              <tr>
+                <th>Department</th>
+                <th>Status</th>
+                <th>Rows</th>
+                <th>Exceptions</th>
+                <th>Last activity</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.departments.map((dep) => {
+                const action = actionFor(dep);
+                return (
+                  <tr key={dep.submission_id}>
+                    <td className="whitespace-nowrap font-medium">{dep.department}</td>
+                    <td>
+                      <StatusBadge status={dep.status} />
+                    </td>
+                    <td>{dep.rows || "—"}</td>
+                    <td>
+                      {dep.exceptions > 0 ? (
+                        <span>
+                          <span className="font-semibold text-[#b91c1c]">{dep.exceptions}</span>
+                          {dep.exceptions_high > 0 && (
+                            <span className="text-[#8a8a8a]"> · {dep.exceptions_high} high</span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-[#8a8a8a]">0</span>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap text-[#8a8a8a]">{dep.last_activity || "—"}</td>
+                    <td className="text-right">
+                      <button onClick={action.onClick} className="btn btn-ghost whitespace-nowrap px-2 py-1 text-[12px]">
+                        {action.label}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </Shell>
   );

@@ -9,7 +9,10 @@ interface DraftResponse {
   subject: string;
   body: string;
   exception_ids: number[];
-  source: string;
+}
+
+function pluralize(n: number, singular: string, plural?: string): string {
+  return `${n} ${n === 1 ? singular : plural ?? `${singular}s`}`;
 }
 
 interface ExportItem {
@@ -169,7 +172,7 @@ export default function QueryExport() {
     >
       <h1 className="mb-1 text-[20px] font-bold tracking-tight">Query & export · {dashboard?.cycle.label}</h1>
       <p className="mb-5 text-[13px] text-[#8a8a8a]">
-        Review the AI draft, edit anything, then send — or export what's already clean.
+        Review the drafted message, edit anything, then send — or export what's already clean.
       </p>
 
       {error && (
@@ -179,10 +182,10 @@ export default function QueryExport() {
         <div className="mb-4 rounded-md bg-[#e8f5ec] px-3 py-2 text-[12px] text-[#15803d]">{sentMsg}</div>
       )}
 
-      <div className="grid grid-cols-[1fr_360px] gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
         <div className="card p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-[13px] font-semibold">Correction request</span>
               <select
                 className="rounded border border-[#e0e0e0] px-2 py-1 text-[12px]"
@@ -199,7 +202,7 @@ export default function QueryExport() {
                 ))}
               </select>
             </div>
-            {draft && <span className="badge badge-blue">AI draft · edit before sending</span>}
+            {draft && <span className="badge badge-blue">Draft · edit before sending</span>}
           </div>
 
           {!draft ? (
@@ -295,7 +298,9 @@ export default function QueryExport() {
 
           <div className="mb-3 text-[13px]">
             <span className="text-[22px] font-bold">{selectedRowTotal}</span>{" "}
-            <span className="text-[#8a8a8a]">rows across {selected.size} department(s) ready</span>
+            <span className="text-[#8a8a8a]">
+              {selectedRowTotal === 1 ? "row" : "rows"} across {pluralize(selected.size, "department")} ready
+            </span>
           </div>
 
           <button
@@ -303,7 +308,7 @@ export default function QueryExport() {
             disabled={selected.size === 0 || exporting}
             onClick={doExport}
           >
-            {exporting ? "Exporting…" : `Export ${selectedRowTotal} rows`}
+            {exporting ? "Exporting…" : `Export ${pluralize(selectedRowTotal, "row")}`}
           </button>
 
           <p className="mt-3 text-[10px] text-[#999]">

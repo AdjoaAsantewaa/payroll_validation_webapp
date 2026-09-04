@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Shell } from "../../components/Shell";
-import { SeverityBadge, SourceBadge } from "../../components/StatusBadge";
+import { SeverityBadge, IssueTypeBadge } from "../../components/StatusBadge";
 import { api, ApiError } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import type { ExceptionItem } from "../../types";
@@ -186,14 +186,14 @@ export default function Upload() {
             />
           </div>
         ) : (
-          <div className="flex items-center justify-between rounded-md border border-[#e6e6e6] bg-[#fafafa] px-3 py-2.5">
-            <div className="text-[13px]">
-              <span className="font-semibold">{result.filename}</span>
-              <span className="ml-2 text-[#8a8a8a]">{result.row_count} rows uploaded</span>
+          <div className="flex items-center justify-between gap-3 rounded-md border border-[#e6e6e6] bg-[#fafafa] px-3 py-2.5">
+            <div className="min-w-0 text-[13px]">
+              <span className="break-all font-semibold">{result.filename}</span>
+              <span className="ml-2 whitespace-nowrap text-[#8a8a8a]">{result.row_count} rows uploaded</span>
             </div>
             <button
               onClick={() => fileRef.current?.click()}
-              className="text-[12px] font-medium text-[#8a8a8a] hover:text-[#111]"
+              className="shrink-0 text-[12px] font-medium text-[#8a8a8a] hover:text-[#111]"
             >
               ✕
             </button>
@@ -210,7 +210,7 @@ export default function Upload() {
 
       {result && (
         <div className="card mb-4 p-5">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-[#8a8a8a]">
               Step 2 — Column mapping
             </div>
@@ -219,7 +219,7 @@ export default function Upload() {
                 onClick={() => setEditingMapping(true)}
                 className="text-[11px] font-medium text-[#1d4ed8] hover:underline"
               >
-                {result.mapping_source === "ai" || result.mapping_source === "mock" ? "AI matched" : "Cached"} · edit
+                {result.mapping_source === "ai" || result.mapping_source === "mock" ? "Matched automatically" : "Remembered"} · edit
               </button>
             ) : (
               <button
@@ -241,26 +241,35 @@ export default function Upload() {
               . Two columns can't map to the same field — change one below.
             </div>
           )}
-          <table className="table-clean">
-            <thead>
+          <table className="table-clean block sm:table">
+            <thead className="hidden sm:table-header-group">
               <tr>
                 <th>Your column</th>
                 <th>Our field</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="block sm:table-row-group">
               {Object.entries(editingMapping ? mappingDraft : result.mapping).map(([source, field]) => {
                 const conflicted = conflictingSourceCols.has(source);
                 return (
-                  <tr key={source} className={conflicted ? "bg-[#fdf3f2]" : undefined}>
-                    <td>
+                  <tr
+                    key={source}
+                    className={`block border-b border-[#f1f1f1] py-2 last:border-0 sm:table-row sm:border-0 sm:py-0 ${conflicted ? "bg-[#fdf3f2]" : undefined}`}
+                  >
+                    <td className="block sm:table-cell">
+                      <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-[#8a8a8a] sm:hidden">
+                        Your column
+                      </span>
                       {source}
                       {conflicted && <span className="ml-1 text-[#b91c1c]">⚠</span>}
                     </td>
-                    <td>
+                    <td className="block sm:table-cell">
+                      <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-[#8a8a8a] sm:hidden">
+                        Our field
+                      </span>
                       {editingMapping ? (
                         <select
-                          className={`rounded border px-1.5 py-1 text-[12px] ${
+                          className={`w-full rounded border px-1.5 py-1 text-[12px] sm:w-auto ${
                             conflicted ? "border-[#e37a70]" : "border-[#d8d8d8]"
                           }`}
                           value={mappingDraft[source] ?? ""}
@@ -311,7 +320,7 @@ export default function Upload() {
                   file was mapped to {result.missing_fields.length === 1 ? "this field" : "these fields"}.
                 </p>
               )}
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
                 {result.block_reason === "mapping_conflict" ? (
                   <button className="btn btn-dark px-3 py-1.5 text-[11px]" onClick={() => setEditingMapping(true)}>
                     Fix the mapping above
@@ -351,25 +360,19 @@ export default function Upload() {
                       p.source === "rule" ? "border-[#f4c9c3] bg-[#fdf3f2]" : "border-[#f6dfae] bg-[#fdf7ec]"
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 text-[12.5px] font-semibold">
+                        <div className="flex flex-wrap items-center gap-1.5 text-[12.5px] font-semibold">
                           {p.row_label}
                           <SeverityBadge severity={p.severity} />
-                          <SourceBadge source={p.source} />
+                          <IssueTypeBadge issueType={p.issue_type} />
                         </div>
-                        <div className="mt-0.5 text-[12.5px] text-[#444]">{p.issue_text}</div>
+                        <div className="mt-0.5 text-[12.5px] text-[#444]">{p.problem}</div>
                         {expandedRow === p.id && (
                           <div className="mt-2 rounded bg-white/70 p-2 text-[12px] text-[#555]">
-                            {p.ai_explanation || p.usual_value ? (
-                              <>
-                                {p.ai_explanation && <p className="mb-1">{p.ai_explanation}</p>}
-                                {p.usual_value && (
-                                  <p className="text-[#8a8a8a]">Usual: {p.usual_value}</p>
-                                )}
-                              </>
-                            ) : (
-                              <p className="text-[#8a8a8a]">No further detail available.</p>
+                            <p className="mb-1">{p.recommended_action}</p>
+                            {p.usual_value && (
+                              <p className="text-[#8a8a8a]">Usual: {p.usual_value}</p>
                             )}
                           </div>
                         )}
@@ -389,13 +392,13 @@ export default function Upload() {
                 ))}
               </div>
 
-              <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#eee] pt-4">
+              <div className="mt-4 flex flex-col gap-3 border-t border-[#eee] pt-4 lg:flex-row lg:items-center lg:justify-between">
                 <p className="text-[11px] text-[#8a8a8a]">
                   Submitting with problems sends them to payroll for review.
                 </p>
-                <div className="flex shrink-0 gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row lg:shrink-0">
                   <input
-                    className="input w-56"
+                    className="input w-full sm:w-56"
                     placeholder="Optional note…"
                     value={note}
                     onChange={(e) => setNote(e.target.value)}

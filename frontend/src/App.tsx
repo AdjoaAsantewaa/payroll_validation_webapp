@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { FloatingAssistant } from "./components/FloatingAssistant";
 import { homeForRole } from "./types";
 import Login from "./pages/Login";
 import Dashboard from "./pages/specialist/Dashboard";
@@ -95,6 +96,7 @@ export default function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <FloatingAssistant />
       </AuthProvider>
     </BrowserRouter>
   );

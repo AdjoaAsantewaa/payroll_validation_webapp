@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Shell } from "../../components/Shell";
-import { SeverityBadge, SourceBadge } from "../../components/StatusBadge";
+import { SeverityBadge, IssueTypeBadge } from "../../components/StatusBadge";
 import { SubmissionDetailModal } from "../../components/SubmissionDetailModal";
 import { api, ApiError } from "../../api/client";
 import type { ExceptionItem } from "../../types";
@@ -116,7 +116,7 @@ export default function ExceptionReview() {
       title="Exceptions"
       navItems={navItems(data.counts.all)}
     >
-      <div className="mb-4 flex items-start justify-between">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <button onClick={() => navigate("/dashboard")} className="mb-1 text-[12px] text-[#8a8a8a] hover:text-[#111]">
             ← Dashboard
@@ -131,7 +131,7 @@ export default function ExceptionReview() {
             <span className="ml-1 text-[#a8a8a8]">(rows submitted vs. distinct validation findings)</span>
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {sub && (
             <button className="btn btn-ghost" onClick={() => setViewingSubmission(sub.id)}>
               View submission details
@@ -139,7 +139,8 @@ export default function ExceptionReview() {
           )}
           <button
             className="btn btn-outline"
-            disabled={!sub}
+            disabled={!sub || data.counts.all === 0}
+            title={data.counts.all === 0 ? "There are no issues to query on this submission" : undefined}
             onClick={() => sub && navigate(`/query-export?department_id=${sub.department_id}`)}
           >
             Send query to department
@@ -169,7 +170,7 @@ export default function ExceptionReview() {
         </div>
       )}
 
-      <div className="grid grid-cols-[380px_1fr] gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[380px_1fr]">
         <div className="card overflow-hidden">
           <div className="flex gap-1 border-b border-[#eee] p-2">
             {(["all", "high", "med", "low"] as SevFilter[]).map((f) => (
@@ -184,7 +185,7 @@ export default function ExceptionReview() {
               </button>
             ))}
           </div>
-          <div className="max-h-[calc(100vh-260px)] overflow-y-auto">
+          <div className="max-h-[340px] overflow-y-auto lg:max-h-[calc(100vh-260px)]">
             {filtered.map((e) => (
               <button
                 key={e.id}
@@ -195,7 +196,7 @@ export default function ExceptionReview() {
               >
                 <div className="mb-1 flex items-center gap-1.5">
                   <SeverityBadge severity={e.severity} />
-                  <SourceBadge source={e.source} />
+                  <IssueTypeBadge issueType={e.issue_type} />
                   {e.status !== "open" && (
                     <span className="ml-auto text-[10px] font-medium text-[#8a8a8a]">
                       {e.status.replace("_", " ")}
@@ -219,13 +220,17 @@ export default function ExceptionReview() {
             <>
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <SeverityBadge severity={selected.severity} />
+                  <div className="flex items-center gap-1.5">
+                    <SeverityBadge severity={selected.severity} />
+                    <IssueTypeBadge issueType={selected.issue_type} />
+                  </div>
                   <h2 className="mt-1.5 text-[16px] font-bold">{selected.row_label}</h2>
                 </div>
               </div>
 
               {hasComparisonData && (
-                <table className="table-clean mb-4">
+                <div className="mb-4 overflow-x-auto">
+                <table className="table-clean">
                   <thead>
                     <tr>
                       <th>Field</th>
@@ -259,48 +264,40 @@ export default function ExceptionReview() {
                     )}
                   </tbody>
                 </table>
+                </div>
               )}
 
-              {selected.ai_explanation && (
-                <div className="mb-4 rounded-md border border-[#cfe0fb] bg-[#f3f7ff] p-3.5">
-                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[#1d4ed8]">
-                    AI explanation
-                  </div>
-                  <p className="text-[13px] leading-relaxed text-[#1e293b]">{selected.ai_explanation}</p>
-                  {selected.recommended_action && (
-                    <p className="mt-1 text-[12px] text-[#475569]">
-                      Recommended: {selected.recommended_action}
-                    </p>
-                  )}
-                  <div className="mt-2 flex gap-3 text-[11px] font-medium text-[#1d4ed8]">
+              <div className="mb-4 rounded-md border border-[#e6e6e6] bg-[#fafafa] p-3.5">
+                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[#8a8a8a]">
+                  Problem
+                </div>
+                <p className="mb-3 text-[13px] leading-relaxed text-[#222]">{selected.problem}</p>
+                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[#8a8a8a]">
+                  Recommended action
+                </div>
+                <p className="text-[13px] leading-relaxed text-[#222]">{selected.recommended_action}</p>
+
+                {selected.field === "overtime_hours" && (
+                  <div className="mt-3 flex gap-3 text-[11px] font-medium text-[#1d4ed8]">
                     <button onClick={loadHistory} className="hover:underline">
                       See last 6 periods
                     </button>
                   </div>
-                  {history && (
-                    <div className="mt-2 flex items-end gap-1">
-                      {history.map((v, i) => (
-                        <div key={i} className="flex flex-col items-center gap-0.5">
-                          <div
-                            className="w-4 rounded-t bg-[#93b8f5]"
-                            style={{ height: `${Math.max(4, v * 2)}px` }}
-                          />
-                          <span className="text-[9px] text-[#94a3b8]">{v}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {!selected.ai_explanation && !hasComparisonData && (
-                <div className="mb-4 rounded-md bg-[#f6f6f6] p-3.5 text-[13px] text-[#555]">
-                  {selected.issue_text}
-                  {selected.usual_value && (
-                    <div className="mt-1 text-[12px] text-[#8a8a8a]">{selected.usual_value}</div>
-                  )}
-                </div>
-              )}
+                )}
+                {history && (
+                  <div className="mt-2 flex items-end gap-1">
+                    {history.map((v, i) => (
+                      <div key={i} className="flex flex-col items-center gap-0.5">
+                        <div
+                          className="w-4 rounded-t bg-[#93b8f5]"
+                          style={{ height: `${Math.max(4, v * 2)}px` }}
+                        />
+                        <span className="text-[9px] text-[#94a3b8]">{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#8a8a8a]">
                 Decision
@@ -311,7 +308,7 @@ export default function ExceptionReview() {
                   {selected.note ? ` — "${selected.note}"` : ""}
                 </div>
               ) : (
-                <div className="mb-3 flex gap-2">
+                <div className="mb-3 flex flex-col gap-2 sm:flex-row">
                   <button className="btn btn-outline flex-1" disabled={busy} onClick={() => decide("accept")}>
                     Accept as correct
                   </button>

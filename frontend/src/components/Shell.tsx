@@ -1,5 +1,5 @@
-import { type ReactNode } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { type ReactNode, useEffect, useState } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 interface NavItem {
@@ -19,10 +19,28 @@ interface ShellProps {
 export function Shell({ breadcrumb, title, cycleLabel, children, navItems }: ShellProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [navOpen, setNavOpen] = useState(false);
+
+  // Close the mobile drawer on every navigation so it never stays open
+  // behind the next page.
+  useEffect(() => {
+    setNavOpen(false);
+  }, [location.pathname]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#f4f5f6] text-[#111]">
-      <aside className="flex w-[230px] shrink-0 flex-col bg-[#0c0d0f] text-white">
+      {navOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+          onClick={() => setNavOpen(false)}
+        />
+      )}
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 flex w-[230px] shrink-0 flex-col bg-[#0c0d0f] text-white transition-transform duration-200 lg:static lg:translate-x-0 ${
+          navOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
         <div className="px-5 pt-6 pb-5">
           <div className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-md bg-white text-[#0c0d0f]">
@@ -31,6 +49,13 @@ export function Shell({ breadcrumb, title, cycleLabel, children, navItems }: She
               </svg>
             </div>
             <div className="text-[13px] font-bold leading-tight tracking-tight">Payroll Validation</div>
+            <button
+              onClick={() => setNavOpen(false)}
+              className="ml-auto text-white/60 hover:text-white lg:hidden"
+              aria-label="Close menu"
+            >
+              ✕
+            </button>
           </div>
           {cycleLabel && (
             <div className="mt-1 pl-9 text-[10px] uppercase tracking-wide text-white/40">
@@ -114,26 +139,37 @@ export function Shell({ breadcrumb, title, cycleLabel, children, navItems }: She
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-[#e6e6e6] bg-white px-6">
-          <div className="text-[13px] text-[#8a8a8a]">
-            {breadcrumb ? (
-              <span>
-                {breadcrumb} <span className="mx-1">/</span>{" "}
+        <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[#e6e6e6] bg-white px-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              onClick={() => setNavOpen(true)}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#333] hover:bg-[#f4f5f6] lg:hidden"
+              aria-label="Open menu"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
+            <div className="min-w-0 truncate text-[13px] text-[#8a8a8a]">
+              {breadcrumb ? (
+                <span>
+                  {breadcrumb} <span className="mx-1">/</span>{" "}
+                  <span className="font-medium text-[#111]">{title}</span>
+                </span>
+              ) : (
                 <span className="font-medium text-[#111]">{title}</span>
-              </span>
-            ) : (
-              <span className="font-medium text-[#111]">{title}</span>
-            )}
+              )}
+            </div>
           </div>
           {cycleLabel && (
-            <div className="flex items-center gap-3">
-              <div className="rounded-md border border-[#e0e0e0] px-3 py-1.5 text-[12px] font-medium text-[#333]">
+            <div className="flex shrink-0 items-center gap-3">
+              <div className="whitespace-nowrap rounded-md border border-[#e0e0e0] px-2.5 py-1.5 text-[11px] font-medium text-[#333] sm:px-3 sm:text-[12px]">
                 Cycle: {cycleLabel}
               </div>
             </div>
           )}
         </header>
-        <main className="flex-1 overflow-y-auto px-8 py-6">{children}</main>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6 lg:px-8 lg:py-6">{children}</main>
       </div>
     </div>
   );
