@@ -169,7 +169,11 @@ export function Shell({ breadcrumb, title, cycleLabel, children, navItems }: She
             </div>
           )}
         </header>
-        <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6 lg:px-8 lg:py-6">{children}</main>
+        {/* pb-24 is a safe area for the floating Payroll Assistant button
+            (fixed bottom-right, ~6rem tall including its own offset) so the
+            last row of a table or the last action button on any page can
+            always be scrolled clear of it, on every breakpoint. */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-24 pt-5 sm:px-6 lg:px-8 lg:pt-6">{children}</main>
       </div>
     </div>
   );

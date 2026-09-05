@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Shell } from "../../components/Shell";
 import { StatusBadge } from "../../components/StatusBadge";
+import { PayrollFormatModal } from "../../components/PayrollFormatModal";
 import { api } from "../../api/client";
 import type { DashboardData } from "../../types";
 
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showFormat, setShowFormat] = useState(false);
   const navigate = useNavigate();
 
   async function load() {
@@ -68,12 +70,16 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
-          <button className="btn btn-outline">Payroll schema</button>
+          <button className="btn btn-outline" onClick={() => setShowFormat(true)}>
+            Payroll format
+          </button>
           <button className="btn btn-dark" onClick={() => navigate("/query-export")}>
             Export clean data
           </button>
         </div>
       </div>
+
+      {showFormat && <PayrollFormatModal onClose={() => setShowFormat(false)} />}
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {pipeline.map((p) => (
