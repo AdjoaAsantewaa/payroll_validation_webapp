@@ -26,6 +26,28 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "480"))
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 AI_MODEL = os.getenv("AI_MODEL", "claude-sonnet-4-5")
+
+# Groq is an alternative live LLM provider for the Payroll Assistant's
+# tool-calling path (app/llm_providers/). openai/gpt-oss-20b is an
+# open-weight model built with function-calling as a first-class feature,
+# and was confirmed (via a live smoke test against Groq's actual API) to
+# both be available and to correctly select tools for this assistant's
+# questions -- Meta's Llama 3.x line, an earlier default choice, returned
+# "model not found" against Groq's current catalog. Picked over
+# openai/gpt-oss-120b (the larger sibling) because a 20B model is plenty
+# for narrow tool selection over this assistant's small fixed toolset --
+# there's no reasoning-depth need here that would justify the larger model.
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+
+# Explicit provider pin: "groq" or "anthropic". Empty/unset means automatic
+# selection (see app/llm_providers/__init__.py): Groq if GROQ_API_KEY is set,
+# else Anthropic if ANTHROPIC_API_KEY is set, else the deterministic
+# fallback. An explicit value is authoritative -- if it's set but that
+# provider's key is missing, the assistant falls back to the mock rather
+# than silently substituting the other provider.
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "").strip().lower()
+
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
 
 # SMTP is optional: if unset, app.email logs the message to console instead of

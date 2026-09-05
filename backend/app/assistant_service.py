@@ -3,27 +3,30 @@
 Two ways an answer gets grounded, depending on whether a live LLM is
 available:
 
-1. Live (ANTHROPIC_API_KEY set): the model is given a small set of
-   READ-ONLY tools (app/assistant_tools.py) -- get_department_details,
-   get_submission_exceptions, get_correction_query_details, and so on -- plus
-   a policy-search tool over the RAG knowledge base. The model decides which
-   tools it needs, possibly several, and combines their results into an
-   answer. It is never told raw SQL or given a generic "run a query" tool;
-   each tool is a specific, narrow, read-only function. Critically, the
-   model is never trusted to decide whether the asker is authorised to see
-   something -- every tool function derives scope itself from the
-   AUTHENTICATED user (see assistant_tools.py's own docstring), so a
-   Submitter asking about another department gets redirected to their own
-   regardless of what the model requests.
+1. Live (a provider configured -- see app/llm_providers/): the model is
+   given a small set of READ-ONLY tools (app/assistant_tools.py) --
+   get_department_details, get_submission_exceptions,
+   get_correction_query_details, and so on -- plus a policy-search tool over
+   the RAG knowledge base. The model decides which tools it needs, possibly
+   several, and combines their results into an answer. It is never told raw
+   SQL or given a generic "run a query" tool; each tool is a specific,
+   narrow, read-only function. Critically, the model is never trusted to
+   decide whether the asker is authorised to see something -- every tool
+   function derives scope itself from the AUTHENTICATED user (see
+   assistant_tools.py's own docstring), so a Submitter asking about another
+   department gets redirected to their own regardless of what the model
+   requests. Which provider is "live" (Groq, Anthropic, or neither) is
+   decided once by app/llm_providers/ from config -- this module doesn't
+   know or care which one is active; it only calls llm_providers.run().
 
-2. Fallback (no API key configured): a deterministic, pattern-matched
-   answer built from build_context() below plus a keyword-gated RAG lookup.
-   This exists for demo resilience and offline use -- it intentionally does
-   NOT try to hardcode every possible sentence; it recognises broad intent
-   categories (a vague "what's wrong" style question, a resubmit-how-to
-   question, a specialist workload question) and otherwise gives an honest
-   "here's what I can help with" message rather than returning an unrelated
-   policy passage.
+2. Fallback (no provider configured, or the live call fails): a
+   deterministic, pattern-matched answer built from build_context() below
+   plus a keyword-gated RAG lookup. This exists for demo resilience and
+   offline use -- it intentionally does NOT try to hardcode every possible
+   sentence; it recognises broad intent categories (a vague "what's wrong"
+   style question, a resubmit-how-to question, a specialist workload
+   question) and otherwise gives an honest "here's what I can help with"
+   message rather than returning an unrelated policy passage.
 
 The assistant is read-only by construction in both modes, not just by
 instruction: there is no tool, endpoint, or code path here capable of an
@@ -38,7 +41,6 @@ import re
 
 from sqlalchemy.orm import Session
 
-from app.config import ANTHROPIC_API_KEY, AI_MODEL
 from app.models import (
     User, Role, Submission, SubmissionRow, Exception as ExceptionModel,
     ExceptionStatus, Employee, CorrectionQuery, Cycle,
@@ -46,18 +48,11 @@ from app.models import (
 from app.issue_presentation import present_issue
 from app import rag
 from app import assistant_tools
-
-_client = None
-if ANTHROPIC_API_KEY:
-    try:
-        import anthropic
-        _client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    except Exception:
-        _client = None
+from app import llm_providers
 
 
 def assistant_available() -> bool:
-    return _client is not None
+    return llm_providers.available()
 
 
 GUARDRAILS = (
@@ -425,13 +420,6 @@ def format_context_block(ctx: dict) -> str:
 # Answer generation
 # ---------------------------------------------------------------------------
 
-# Cap on how many tool-call round-trips one answer can make. Generous enough
-# for genuinely multi-fact questions ("what is holding Operations up" needs
-# department status + query details + exceptions -- 3 calls) while bounding
-# the worst case if the model gets stuck calling tools without converging.
-MAX_TOOL_ITERATIONS = 6
-
-
 def _page_hint(ctx: dict) -> str:
     """One line describing what's currently on screen, with real ids the
     model can act on immediately -- a starting point, not a restriction: the
@@ -457,61 +445,30 @@ def _page_hint(ctx: dict) -> str:
 
 
 def _answer_with_tools(db: Session, user: User, message: str, ctx: dict) -> str | None:
-    """Live tool-calling path. Returns None on any failure (no client, no
-    text produced, exceeded iteration cap, API error) so the caller falls
-    back to the deterministic mock -- same defensive convention as every
-    other Claude touchpoint in this app (ai_service.py's _call_claude)."""
-    if not _client:
+    """Live tool-calling path. Builds the shared system prompt and
+    page-context hint -- identical regardless of which provider ends up
+    handling the request -- then delegates to whichever provider
+    app/llm_providers/ has resolved (Groq, Anthropic, or none). Returns None
+    on any failure so the caller falls back to the deterministic mock."""
+    if not llm_providers.available():
         return None
 
     system = GUARDRAILS + "\n\n" + ROLE_FRAMING.get(user.role.value, "")
     hint = _page_hint(ctx)
     first_message = f"{hint}\n\n{message}".strip() if hint else message
-    messages: list[dict] = [{"role": "user", "content": first_message}]
-
-    try:
-        for _ in range(MAX_TOOL_ITERATIONS):
-            resp = _client.messages.create(
-                model=AI_MODEL, max_tokens=900, system=system,
-                tools=assistant_tools.TOOL_SCHEMAS, messages=messages,
-            )
-            if resp.stop_reason != "tool_use":
-                text = "".join(
-                    block.text for block in resp.content if getattr(block, "type", None) == "text"
-                )
-                return text.strip() or None
-
-            messages.append({"role": "assistant", "content": resp.content})
-            tool_results = []
-            for block in resp.content:
-                if getattr(block, "type", None) != "tool_use":
-                    continue
-                result = assistant_tools.call_tool(block.name, block.input or {}, db, user, ctx)
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    # Capped defensively -- a tool result is data returned to
-                    # the model, never executed, but there's no reason for
-                    # one call's payload to be unbounded.
-                    "content": json.dumps(result, default=str)[:6000],
-                })
-            if not tool_results:
-                return None
-            messages.append({"role": "user", "content": tool_results})
-    except Exception:
-        return None
-
-    return None
+    return llm_providers.run(system, first_message, db, user, ctx)
 
 
 def answer(db: Session, user: User, message: str, page: str = "",
            submission_id: int | None = None, exception_id: int | None = None) -> dict:
     """Returns {"reply": str}. Tries the live tool-calling path first when a
-    model is configured; falls back to the deterministic mock (which still
-    needs `ctx` and a keyword-gated RAG lookup) otherwise or on any failure."""
+    provider is configured; falls back to the deterministic mock (which
+    still needs `ctx` and a keyword-gated RAG lookup) otherwise or on any
+    failure. The caller (the /assistant/chat route) never knows or needs to
+    know which provider -- if any -- actually answered."""
     ctx = build_context(db, user, page, submission_id, exception_id)
 
-    if _client:
+    if llm_providers.available():
         reply = _answer_with_tools(db, user, message, ctx)
         if reply:
             return {"reply": reply}

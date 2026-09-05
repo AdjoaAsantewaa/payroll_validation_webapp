@@ -19,6 +19,13 @@ _DB_PATH = os.path.join(tempfile.gettempdir(), "payroll_assistant_tools_test.db"
 if os.path.exists(_DB_PATH):
     os.remove(_DB_PATH)
 os.environ["DATABASE_URL"] = f"sqlite:///{_DB_PATH}"
+# These tests call the tool functions directly, never through a live
+# provider -- but force both keys explicitly empty anyway so importing
+# app.assistant_tools can never trigger a real provider client construction
+# via backend/.env's local-dev GROQ_API_KEY.
+os.environ["GROQ_API_KEY"] = ""
+os.environ["ANTHROPIC_API_KEY"] = ""
+os.environ["LLM_PROVIDER"] = ""
 
 from app.database import Base, engine, SessionLocal  # noqa: E402
 from app import models as m  # noqa: E402

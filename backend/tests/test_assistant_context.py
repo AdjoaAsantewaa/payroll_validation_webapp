@@ -23,6 +23,14 @@ _DB_PATH = os.path.join(tempfile.gettempdir(), "payroll_assistant_context_test.d
 if os.path.exists(_DB_PATH):
     os.remove(_DB_PATH)
 os.environ["DATABASE_URL"] = f"sqlite:///{_DB_PATH}"
+# This test suite exercises the deterministic MOCK fallback specifically --
+# force both provider keys to explicitly empty (not just unset) so
+# config.py's load_dotenv() can't backfill a real key from backend/.env
+# (used for local dev) and silently send these "offline" tests to a live
+# provider over the network.
+os.environ["GROQ_API_KEY"] = ""
+os.environ["ANTHROPIC_API_KEY"] = ""
+os.environ["LLM_PROVIDER"] = ""
 
 from app.database import Base, engine, SessionLocal  # noqa: E402
 from app import models as m  # noqa: E402

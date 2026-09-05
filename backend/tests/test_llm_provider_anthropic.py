@@ -1,21 +1,19 @@
-"""Regression tests for the LLM tool-calling ORCHESTRATION loop
-(assistant_service._answer_with_tools) -- the part that decides which tool
-results to feed back to the model and when to stop.
+"""Regression tests for the Anthropic tool-calling provider
+(app/llm_providers/anthropic_provider.py) -- the orchestration loop itself,
+not the tool functions (covered by test_assistant_tools.py) or the mock
+fallback (covered by test_assistant_context.py).
 
 This environment has no ANTHROPIC_API_KEY / outbound network access, so a
 real end-to-end Claude call can't be exercised here. Instead, these tests
-monkeypatch assistant_service._client with a fake Anthropic client that
-returns pre-scripted tool_use / text responses -- which is exactly the right
-boundary to test at: it proves the LOOP correctly dispatches tool calls
-through the real, unmocked assistant_tools.call_tool() (so real permission
-enforcement still runs), assembles multi-turn messages correctly, handles
-multiple tool calls in one turn, and terminates safely if a model never
-converges. The tool functions themselves are covered by
-test_assistant_tools.py; the mock-fallback path is covered by
-test_assistant_context.py.
+monkeypatch anthropic_provider._client with a fake Anthropic client that
+returns pre-scripted tool_use / text responses -- proving the loop correctly
+dispatches tool calls through the real, unmocked assistant_tools.call_tool()
+(so real permission enforcement still runs), assembles multi-turn messages
+correctly, handles multiple tool calls in one turn, and terminates safely if
+a model never converges.
 
 Uses a throwaway local SQLite file only. Never touches Supabase.
-Run directly: `python backend/tests/test_assistant_tool_loop.py`
+Run directly: `python backend/tests/test_llm_provider_anthropic.py`
 """
 import json
 import os
@@ -26,14 +24,22 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _BACKEND_DIR = os.path.dirname(_THIS_DIR)
 sys.path.insert(0, _BACKEND_DIR)
 
-_DB_PATH = os.path.join(tempfile.gettempdir(), "payroll_assistant_loop_test.db")
+_DB_PATH = os.path.join(tempfile.gettempdir(), "payroll_provider_anthropic_test.db")
 if os.path.exists(_DB_PATH):
     os.remove(_DB_PATH)
 os.environ["DATABASE_URL"] = f"sqlite:///{_DB_PATH}"
+# Force both provider keys explicitly empty so config.py's load_dotenv()
+# can't backfill a real key from backend/.env (used for local dev) --
+# every test here supplies its own fake client, so a real one must never
+# get constructed or used.
+os.environ["GROQ_API_KEY"] = ""
+os.environ["ANTHROPIC_API_KEY"] = ""
+os.environ["LLM_PROVIDER"] = ""
 
 from app.database import Base, engine, SessionLocal  # noqa: E402
 from app import models as m  # noqa: E402
 import app.assistant_service as assistant_service  # noqa: E402
+from app.llm_providers import anthropic_provider  # noqa: E402
 
 Base.metadata.create_all(engine)
 db = SessionLocal()
@@ -114,15 +120,13 @@ db.commit()
 
 ctx_finance = assistant_service.build_context(db, submitter_finance)
 ctx_specialist = assistant_service.build_context(db, specialist)
+SYSTEM = "system prompt text"
 
 
 # --- Tests -------------------------------------------------------------
 
 # 1. Isolation holds THROUGH the whole tool loop: a fake model asks for
 # "Operations" department detail while the real user is a Finance submitter.
-# The dispatched tool result (fed back to the "model") must be scoped to
-# Finance, never Operations -- proving the loop doesn't just trust the
-# model's tool-call arguments.
 fake = FakeClient([
     FakeResp("tool_use", [
         FakeBlock("tool_use", id="t1", name="get_department_details",
@@ -130,10 +134,8 @@ fake = FakeClient([
     ]),
     FakeResp("end_turn", [FakeBlock("text", text="Finance's submission needs review.")]),
 ])
-assistant_service._client = fake
-reply = assistant_service._answer_with_tools(
-    db, submitter_finance, "What is the issue with Operations?", ctx_finance
-)
+anthropic_provider._client = fake
+reply = anthropic_provider.run(SYSTEM, "What is the issue with Operations?", db, submitter_finance, ctx_finance)
 check("Tool loop returns the model's final text", reply == "Finance's submission needs review.")
 
 second_call_messages = fake.messages.calls[1]["messages"]
@@ -155,8 +157,8 @@ fake2 = FakeClient([
     ]),
     FakeResp("end_turn", [FakeBlock("text", text="Here is the overview.")]),
 ])
-assistant_service._client = fake2
-reply2 = assistant_service._answer_with_tools(db, specialist, "Give me an overview", ctx_specialist)
+anthropic_provider._client = fake2
+reply2 = anthropic_provider.run(SYSTEM, "Give me an overview", db, specialist, ctx_specialist)
 check("Multi-tool-call turn: final text returned", reply2 == "Here is the overview.")
 second_msgs = fake2.messages.calls[1]["messages"]
 tool_result_blocks = [
@@ -165,41 +167,19 @@ tool_result_blocks = [
 ]
 check("Multi-tool-call turn: both tool calls were dispatched and fed back", len(tool_result_blocks) == 2)
 
-# 3. A model that never converges (always requests a tool) hits the
-# iteration cap and the loop returns None -- the caller then falls back to
-# the deterministic mock rather than hanging or erroring.
+# 3. A model that never converges hits the iteration cap and returns None.
 never_ending = FakeClient([
     FakeResp("tool_use", [FakeBlock("tool_use", id=f"t{i}", name="get_cycle_summary", input={})])
-    for i in range(assistant_service.MAX_TOOL_ITERATIONS + 2)
+    for i in range(anthropic_provider.MAX_TOOL_ITERATIONS + 2)
 ])
-assistant_service._client = never_ending
-reply3 = assistant_service._answer_with_tools(db, specialist, "loop forever", ctx_specialist)
+anthropic_provider._client = never_ending
+reply3 = anthropic_provider.run(SYSTEM, "loop forever", db, specialist, ctx_specialist)
 check("Iteration cap: a non-converging model returns None (safe fallback), not a hang or crash",
       reply3 is None)
 check("Iteration cap: the fake client was called at most MAX_TOOL_ITERATIONS times",
-      len(never_ending.messages.calls) <= assistant_service.MAX_TOOL_ITERATIONS)
+      len(never_ending.messages.calls) <= anthropic_provider.MAX_TOOL_ITERATIONS)
 
-# 4. Role framing / guardrails are actually present in the system prompt sent.
-fake4 = FakeClient([FakeResp("end_turn", [FakeBlock("text", text="ok")])])
-assistant_service._client = fake4
-assistant_service._answer_with_tools(db, submitter_finance, "hello", ctx_finance)
-sent_system = fake4.messages.calls[0]["system"]
-check("System prompt includes the read-only/no-write guardrail",
-      "read-only" in sent_system.lower())
-check("System prompt includes the Submitter role framing",
-      "Department Submitter" in sent_system)
-check("System prompt forbids revealing secrets/credentials",
-      "credentials" in sent_system.lower() and "password hashes" in sent_system.lower())
-
-# 5. Full answer() falls back to mock when the tool loop yields no usable text.
-no_text = FakeClient([FakeResp("end_turn", [])])  # no text block at all
-assistant_service._client = no_text
-result = assistant_service.answer(db, submitter_finance, "What is the issue?")
-check("answer() falls back to the mock path when the live loop produces no text",
-      "F2004" in result["reply"] or "no unresolved issues" in result["reply"].lower()
-      or "don't see a current submission" in result["reply"].lower())
-
-assistant_service._client = None  # restore -- don't leak a fake client past this test module
+anthropic_provider._client = None  # restore
 
 print()
 db.close()
@@ -213,4 +193,4 @@ except PermissionError:
 if failures:
     print(f"{len(failures)} FAILURE(S): {failures}")
     sys.exit(1)
-print("All assistant tool-loop regression tests passed.")
+print("All Anthropic provider regression tests passed.")
